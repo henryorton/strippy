@@ -11,7 +11,7 @@ import warnings
 long_description = """
 Make a strip plot from a 3D Bruker data set and 2D peak list. 
 Typical usage: 
-python stripper.py -d 14/pdata/3 -p peaks.list -w 0.15 -c 0.1 10 10 -r 0.5 6.0. 
+python strippy.py -d 14/pdata/3 -p peaks.list -w 0.15 -c 0.1 10 10 -r 0.5 6.0. 
 This would plot processed data 3 from dataset 14.
 The peak list has columns 'f3 f2' separated by spaces.
 The strips will have with 0.15 ppm.
