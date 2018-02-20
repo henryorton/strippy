@@ -84,6 +84,20 @@ def load_spectrum_pipe(pipeDir):
 	return data/np.abs(data).mean(), scales
 
 
+def load_spectrum(spectrumDir):
+	try:
+		a, b = load_spectrum_bruker(spectrumDir)
+	except:
+		pass
+
+	try:
+		a, b = load_spectrum_pipe(spectrumDir)
+	except:
+		pass
+
+	return a, b
+
+
 
 def make_contours(lowest, highest, number):
 	return lowest+(highest-lowest)*(np.arange(0,number)/float(number-1))**(2.**0.5)
@@ -95,7 +109,7 @@ if args:
 	peaks = load_peaks(args.peaks)
 	cm = plt.get_cmap('brg', len(peaks))
 	print("Loading data ...")
-	data, scales = load_spectrum_pipe(args.dataset)
+	data, scales = load_spectrum(args.dataset)
 	s1, s2, s3 = scales[0], scales[1], scales[2]
 
 	if args.contours is None:
@@ -167,7 +181,7 @@ if args:
 
 
 	if args.hsqc:
-		data, scales = load_spectrum_pipe(args.hsqc)
+		data, scales = load_spectrum(args.hsqc)
 		s2, s3 = scales[0], scales[1]
 	else:
 		data = np.ptp(data, axis=0)
