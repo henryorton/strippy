@@ -1,8 +1,8 @@
 import nmrglue as ng
 import numpy as np
 
-# import matplotlib as mpl
-# mpl.use('Agg')
+import matplotlib as mpl
+mpl.use('Agg')
 from matplotlib import pyplot as plt
 import argparse
 import warnings
@@ -64,17 +64,34 @@ def load_peaks(fileName):
 def load_spectrum_bruker(brukerProcDir):
 	dic, data = ng.bruker.read_pdata(brukerProcDir)
 	udic = ng.bruker.guess_udic(dic, data)
-	proc = dic['procs']
-	proc2 = dic['proc2s']
-	proc3 = dic['proc3s']
-	udic[2]['car'] = proc['OFFSET']*proc['SF'] - 0.5*proc['SW_p']
-	udic[2]['sw'] = proc['SW_p']
-	udic[1]['car'] = proc2['OFFSET']*proc2['SF'] - 0.5*proc2['SW_p']
-	udic[1]['sw'] = proc2['SW_p']
-	udic[0]['car'] = proc3['OFFSET']*proc3['SF'] - 0.5*proc3['SW_p']
-	udic[0]['sw'] = proc3['SW_p']
-	scales = {i:ng.fileiobase.uc_from_udic(udic, dim=i) for i in range(udic['ndim'])}
+	ndim = len(data.shape)
+	if ndim == 3:
+		proc = dic['procs']
+		proc2 = dic['proc2s']
+		proc3 = dic['proc3s']
+		udic[2]['car'] = proc['OFFSET']*proc['SF'] - 0.5*proc['SW_p']
+		udic[2]['sw'] = proc['SW_p']
+		udic[2]['obs'] = proc['SF']
+		udic[1]['car'] = proc2['OFFSET']*proc2['SF'] - 0.5*proc2['SW_p']
+		udic[1]['sw'] = proc2['SW_p']
+		udic[1]['obs'] = proc2['SF']
+		udic[0]['car'] = proc3['OFFSET']*proc3['SF'] - 0.5*proc3['SW_p']
+		udic[0]['sw'] = proc3['SW_p']
+		udic[0]['obs'] = proc3['SF']
+	elif ndim == 2:
+		proc = dic['procs']
+		proc2 = dic['proc2s']
+		udic[1]['car'] = proc['OFFSET']*proc['SF'] - 0.5*proc['SW_p']
+		udic[1]['sw'] = proc['SW_p']
+		udic[1]['obs'] = proc['SF']
+		udic[0]['car'] = proc2['OFFSET']*proc2['SF'] - 0.5*proc2['SW_p']
+		udic[0]['sw'] = proc2['SW_p']
+		udic[0]['obs'] = proc2['SF']
+
+	scales = {i:ng.fileiobase.uc_from_udic(udic, dim=i) for i in range(ndim)}
 	return data/np.abs(data).mean(), scales
+
+
 
 
 def load_spectrum_pipe(pipeDir):
@@ -103,6 +120,19 @@ def make_contours(lowest, highest, number):
 	return lowest+(highest-lowest)*(np.arange(0,number)/float(number-1))**(2.**0.5)
 
 
+class ranger(object):
+	def __init__(self, scale):
+		self.scale = scale
+
+	def __call__(self, arg):
+		h, l = self.scale.ppm_limits()
+		if h < arg < l:
+			return True
+		else:
+			return False
+
+
+
 
 if args:
 	width = args.width
@@ -114,7 +144,7 @@ if args:
 
 	if args.contours is None:
 		std = np.std(data)
-		cont = make_contours(5*std,50*std,10)
+		cont = make_contours(2*std,30*std,10)
 	else:
 		cont = make_contours(*args.contours)
 
@@ -131,13 +161,21 @@ if args:
 		h1i, l1i = (s1.i(i, unit='ppm') for i in (h1p, l1p))
 
 
+	tmp = []
+	for peak in peaks:
+		H, X = peak
+		h3, l3 = s3.ppm_limits()
+		h2, l2 = s2.ppm_limits()
+		if h3>H>l3 and h2>X>l2:
+			tmp.append(peak)
+	peaks = tmp
+
 	print("Plotting strips ...")
 	fig = plt.figure(figsize=(2.7*width*len(peaks),11))
 	fig.subplots_adjust(wspace=0)
 
 	hide_axis = False
-
-	for i, peak in enumerate(peaks):
+	for i, peak in enumerate(peaks[1:]):
 		ax = fig.add_subplot(1, len(peaks), i+1)
 
 		c3p, c2p = peak
@@ -156,8 +194,8 @@ if args:
 
 		with warnings.catch_warnings():
 			warnings.simplefilter("ignore")
-			ax.contour( strip, cont, extent=lims, colors='k', linewidths=0.2)
-			ax.contour(-strip, cont, extent=lims, colors='r', linewidths=0.2)
+			ax.contour( strip, cont, extent=lims, colors='k', linewidths=0.05)
+			ax.contour(-strip, cont, extent=lims, colors='r', linewidths=0.05)
 		ax.invert_xaxis()
 		ax.invert_yaxis()
 		ax.text(.5,.97,"{:3.1f}".format(c2p),horizontalalignment='center',
@@ -170,6 +208,8 @@ if args:
 			ax.yaxis.set_ticklabels([])
 			ax.yaxis.set_ticks_position('none')
 		hide_axis = True
+		if args.range is not None:
+			ax.set_ylim(*args.range[::-1])
 
 		ax.set_title(str(i), color=cm(i))
 		
@@ -187,21 +227,21 @@ if args:
 		data = np.ptp(data, axis=0)
 
 	std = np.std(data)
-	cont = make_contours(5*std,30*std,10)
+	cont = make_contours(0.3*std,10*std,10)
 	
 	fig = plt.figure(figsize=(11,8))
 	ax = fig.add_subplot(111)
 
 	ax.contour(data, cont, colors='k', extent=s3.ppm_limits()+s2.ppm_limits(),
-		linewidths=0.2)
+		linewidths=0.05)
 	for i, peak in enumerate(peaks):
 		ax.plot(*peak, color='r', marker='x')
 		ax.annotate(str(i), xy=peak, color=cm(i))
 
 	ax.invert_xaxis()
 	ax.invert_yaxis()
-	# ax.set_xlim(11, 5.5)
-	# ax.set_ylim(136,100)
+	ax.set_xlim(11, 5.5)
+	ax.set_ylim(136,100)
 	fig.savefig('hsqc.pdf')
 
 
