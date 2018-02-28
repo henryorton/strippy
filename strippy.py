@@ -1,13 +1,13 @@
-import nmrglue as ng
 import numpy as np
+import os
+import re
 
 import matplotlib as mpl
 mpl.use('Agg')
 from matplotlib import pyplot as plt
+from matplotlib.ticker import FormatStrFormatter
 import argparse
 import warnings
-
-from pprint import pprint
 
 
 long_description = """
@@ -27,7 +27,7 @@ Plotting in the f1 dimension in from 0.5 to 6.0 ppm.
 if __name__=='__main__':
 	parser = argparse.ArgumentParser(description=long_description)
 	parser.add_argument('-d','--dataset',
-		help="directory of nmrPipe 3D data",type=str)
+		help="directory of nmrPipe 3D data",type=str,nargs='+')
 	parser.add_argument('-p','--peaks',
 		help="2 dimensional peak list with 'f3 f2' in ppm separated by spaces",
 		type=str)
@@ -50,87 +50,293 @@ else:
 
 
 def load_peaks(fileName):
+	"""
+	Parse peaks file to list of tuples that specify an identifier and 
+	peak position in ppm. If 3 columns are provided, the first column is
+	assumed to be the peak identifier (such as a sequence/residue). If two
+	columns are provided, the 
+
+	Parameters
+	----------
+	fileName : str
+		the directory and filename of the peaks file to be loaded
+
+	Returns
+	-------
+	peaks : list of tuples
+		a list of tuples (i, (f3, f2)) where i is an identifier, f3 and f2
+		make a numpy array of the ppm positions of the peak. 
+	"""
 	peaks = []
 	with open(fileName) as o:
+		i=0
 		for line in o:
+			splt = line.split()
 			try:
-				pos = np.array(line.split()[-2:], dtype=float)
-				peaks.append(pos)
+				pos = np.array(splt[-2:], dtype=float)
+				if len(splt)==3:
+					peaks.append((splt[0], pos))
+				else:
+					peaks.append((i, pos))
+					i += 1
 			except ValueError:
 				print("Line ignored in peaks file: {}".format(repr(line)))
 	return peaks
 
 
-def load_spectrum_bruker(brukerProcDir):
-	dic, data = ng.bruker.read_pdata(brukerProcDir)
-	udic = ng.bruker.guess_udic(dic, data)
-	ndim = len(data.shape)
-	if ndim == 3:
-		proc = dic['procs']
-		proc2 = dic['proc2s']
-		proc3 = dic['proc3s']
-		udic[2]['car'] = proc['OFFSET']*proc['SF'] - 0.5*proc['SW_p']
-		udic[2]['sw'] = proc['SW_p']
-		udic[2]['obs'] = proc['SF']
-		udic[1]['car'] = proc2['OFFSET']*proc2['SF'] - 0.5*proc2['SW_p']
-		udic[1]['sw'] = proc2['SW_p']
-		udic[1]['obs'] = proc2['SF']
-		udic[0]['car'] = proc3['OFFSET']*proc3['SF'] - 0.5*proc3['SW_p']
-		udic[0]['sw'] = proc3['SW_p']
-		udic[0]['obs'] = proc3['SF']
-	elif ndim == 2:
-		proc = dic['procs']
-		proc2 = dic['proc2s']
-		udic[1]['car'] = proc['OFFSET']*proc['SF'] - 0.5*proc['SW_p']
-		udic[1]['sw'] = proc['SW_p']
-		udic[1]['obs'] = proc['SF']
-		udic[0]['car'] = proc2['OFFSET']*proc2['SF'] - 0.5*proc2['SW_p']
-		udic[0]['sw'] = proc2['SW_p']
-		udic[0]['obs'] = proc2['SF']
-
-	scales = {i:ng.fileiobase.uc_from_udic(udic, dim=i) for i in range(ndim)}
-	return data/np.abs(data).mean(), scales
 
 
+class Axis(object):
+	def __init__(self, points, carrier, spectralWidth, observedFrequency,
+		dimension, label):
+		self.p   = points
+		self.car = carrier
+		self.sw  = spectralWidth
+		self.obs = observedFrequency
+		self.dim = dimension
+		self.lbl = label
 
+	def __str__(self):
+		return "<Axis {0}:{1:>3}>".format(self.dim, self.lbl)
 
-def load_spectrum_pipe(pipeDir):
-	dic, data = ng.pipe.read(pipeDir)
-	ndim = len(data.shape)
-	scales = {i:ng.fileio.pipe.make_uc(dic, data, dim=i) for i in range(ndim)}
-	return data/np.abs(data).mean(), scales
+	def __repr__(self):
+		return self.__str__()
 
+	@property
+	def hz_scale(self):
+		return np.linspace(self.car+self.sw/2, self.car-self.sw/2, self.p)
 
-def load_spectrum(spectrumDir):
-	try:
-		a, b = load_spectrum_bruker(spectrumDir)
-	except:
-		pass
+	@property
+	def ppm_scale(self):
+		return self.hz_scale / self.obs
 
-	try:
-		a, b = load_spectrum_pipe(spectrumDir)
-	except:
-		pass
+	@property
+	def ppm_limits(self):
+		scale = self.ppm_scale
+		return scale.max(), scale.min()
 
-	return a, b
+	def f(self, ppm):
+		hzpp = self.sw / float(self.p-1)
+		loc = (-ppm * self.obs + self.car + self.sw/2) / hzpp
+		return loc
 
+	def i(self, ppm):
+		return np.argmin(np.abs(self.ppm_scale - ppm))
 
+	def __getitem__(self, slic):
+		if isinstance(slic, slice):
+			if slic.start:
+				start = slic.start
+			else:
+				start = self.ppm_limits[0]
+			if slic.stop:
+				stop = slic.stop
+			else:
+				stop = self.ppm_limits[1]
+			return slice(self.i(start), self.i(stop)+1)
 
-def make_contours(lowest, highest, number):
-	return lowest+(highest-lowest)*(np.arange(0,number)/float(number-1))**(2.**0.5)
-
-
-class ranger(object):
-	def __init__(self, scale):
-		self.scale = scale
-
-	def __call__(self, arg):
-		h, l = self.scale.ppm_limits()
-		if h < arg < l:
-			return True
 		else:
-			return False
+			return self.i(slic)
 
+	def new(self, slic):
+		if isinstance(slic, slice):
+			scale = self.hz_scale[self[slic]]
+			p = len(scale)
+			sw = np.ptp(scale)
+			car = (scale.min() + scale.max()) / 2.0
+			return self.__class__(p, car, sw, self.obs, self.dim, self.lbl)
+		else:
+			loc = self.f(slic)
+			low = int(loc)
+			high = low + 1
+			weight = loc - low
+			return low, high, weight
+
+
+class Spectrum(object):
+	@staticmethod
+	def reorder_submatrix(data, shape, submatrix_shape):
+		"""
+		Copied from nmrglue version 0.6
+		Reorder processed binary Bruker data.
+
+		Parameters
+		----------
+		data : array
+
+		shape : tuple
+			Shape of final data.
+		submatrix_shape : tuple
+			Shape of submatrix.
+
+		Returns
+		-------
+		rdata : array
+			Array in which data has been reordered and correctly shaped.
+
+		"""
+		if submatrix_shape is None or shape is None:
+			return data
+
+		# do nothing to 1D data
+		if len(submatrix_shape) == 1 or len(shape) == 1:
+			return data
+
+		rdata = np.empty(shape, dtype=data.dtype)
+		sub_per_dim = [int(i / j) for i, j in zip(shape, submatrix_shape)]
+		nsubs = np.product(sub_per_dim)
+		data = data.reshape([nsubs] + list(submatrix_shape))
+
+		for sub_num, sub_idx in enumerate(np.ndindex(tuple(sub_per_dim))):
+			sub_slices = [slice(i * j, (i + 1) * j) for i, j in
+						  zip(sub_idx, submatrix_shape)]
+			rdata[sub_slices] = data[sub_num]
+		return rdata
+
+	@staticmethod
+	def read_procs(fileName):
+		lineMatch = re.compile("\#\#\$(.*)=[\s+]?(.*)")
+		valueMatch = re.compile("<(.*)>")
+		dic = {}
+		with open(fileName) as o:
+			for line in o:
+				m = lineMatch.match(line)
+				if m:
+					key, value = m.groups()
+					v = valueMatch.match(value)
+					if v:
+						dic[key] = v.group(1)
+					else:
+						try:
+							f = float(value)
+							i = int(f)
+							if f==i:
+								dic[key] = i
+							else:
+								dic[key] = f
+						except ValueError:
+							dic[key] = value    
+		return dic
+
+	@staticmethod
+	def read_spectrum(fileName):
+		with open(fileName, 'rb') as o:
+			data = np.frombuffer(o.read(), dtype='<i4')
+		data = np.asarray(data, dtype=float)
+		return data
+
+	@staticmethod
+	def read_clevels(fileName):
+		with open(fileName) as o:
+			s = o.read().replace('\n',' ')
+		lvls = re.search('\#\#\$LEVELS=\s?\(.*\)(.*?)\#\#\$', s).group(1)
+		return np.trim_zeros(np.array(lvls.split(), dtype=float))
+
+
+	@classmethod
+	def load_bruker(cls, spectrumDir):
+		# Fetch directories
+		procs = {}
+		clevels = None
+		for fileName in os.listdir(spectrumDir):
+			fullDir = os.path.join(spectrumDir, fileName)
+			if re.search("[0-9][r]+[^i]", fileName):
+				specFile = fullDir
+
+			elif re.search("proc[0-9]?s", fileName):
+				dim = filter(str.isdigit, fileName)
+				if not dim:
+					dim = 1
+				procs[int(dim)] = cls.read_procs(fullDir)
+
+			elif re.search("clevels", fileName):
+				clevels = fullDir
+
+		# Get dimensions
+		axes = []
+		actualShape = []
+		subMatrixShape = []
+		for dim, proc in procs.items():
+			p   = proc['SI']
+			car = proc['OFFSET']*proc['SF'] - 0.5*proc['SW_p']
+			sw  = proc['SW_p']
+			obs = proc['SF']
+			lbl = proc['AXNUC']
+			axes.append(Axis(p, car, sw, obs, dim, lbl))
+			actualShape.append(p)
+			subMatrixShape.append(proc.get('XDIM', p))
+
+		scale = 2.0**(-procs[1].get('NC_proc'))
+		axes = sorted(axes, key=lambda x: -x.dim)
+
+		# Read spectrum data
+		data = cls.read_spectrum(specFile)
+		data = cls.reorder_submatrix(data, actualShape[::-1], 
+			subMatrixShape[::-1]) / scale
+
+		# Read contour levels
+		if clevels:
+			clevels = cls.read_clevels(clevels)
+
+		return cls(data, axes, clevels)
+
+	@classmethod
+	def load_pipe(cls, spectrumDir):
+		import nmrglue as ng
+		from pprint import pprint
+		dic, data = ng.pipe.read(spectrumDir)
+		axes = []
+		for i in range(1,4):
+			dim = int(3-dic['FDDIMORDER{}'.format(i)])
+			p = data.shape[dim]
+			sw  = dic['FDF{}SW'.format(i)]
+			car = dic['FDF{}ORIG'.format(i)] + sw/2.0
+			obs = dic['FDF{}OBS'.format(i)]
+			lbl = dic['FDF{}LABEL'.format(i)]
+			new_axis = Axis(p, car, sw, obs, dim, lbl)
+			axes.append(new_axis)
+		axes = sorted(axes, key=lambda x: x.dim)
+		std = np.std(data)
+		cont = cls.make_contours(8*std, 50*std, 10)
+		cont = np.array(list(-cont[::-1])+list(cont))
+
+		return cls(data, axes, cont)
+
+	@staticmethod	
+	def make_contours(lowest, highest, number):
+		return lowest+(highest-lowest)*(np.arange(0,number)/float(number-1))**(2.**0.5)
+
+
+	def __init__(self, data, axes, contours=None):
+		self.data = data
+		self.axes = axes
+		self.cont = contours
+
+	def __getitem__(self, slices):
+		new_slice = []
+		new_axes = []
+		for axis, slic in zip(self.axes, slices):
+			new_slice.append(axis[slic])
+			new_axis = axis.new(slic)
+			if isinstance(new_axis, Axis):
+				new_axes.append(new_axis)
+
+		return self.__class__(self.data[new_slice], new_axes, self.cont)
+		
+	@property
+	def extent(self):
+		ex = ()
+		for axis in self.axes:
+			ex += axis.ppm_limits[::-1]
+		return ex[::-1]
+
+	@property
+	def poscont(self):
+		return self.cont[np.where(self.cont>0)]
+
+	@property
+	def negcont(self):
+		return self.cont[np.where(self.cont<0)]
 
 
 
@@ -138,82 +344,61 @@ if args:
 	width = args.width
 	peaks = load_peaks(args.peaks)
 	cm = plt.get_cmap('brg', len(peaks))
-	print("Loading data ...")
-	data, scales = load_spectrum(args.dataset)
-	s1, s2, s3 = scales[0], scales[1], scales[2]
-
-	if args.contours is None:
-		std = np.std(data)
-		cont = make_contours(2*std,30*std,10)
-	else:
-		cont = make_contours(*args.contours)
-
-	if args.range is None:
-		h1p, l1p = s1.ppm_limits()
-		h1i, l1i = 0, len(s1.ppm_scale())
-	else:
-		l1p, h1p = args.range
-		maxi, mini = s1.ppm_limits()
-		if l1p<mini:
-			l1p = mini
-		if h1p>maxi:
-			h1p = maxi
-		h1i, l1i = (s1.i(i, unit='ppm') for i in (h1p, l1p))
-
-
-	tmp = []
-	for peak in peaks:
-		H, X = peak
-		h3, l3 = s3.ppm_limits()
-		h2, l2 = s2.ppm_limits()
-		if h3>H>l3 and h2>X>l2:
-			tmp.append(peak)
-	peaks = tmp
-
 	print("Plotting strips ...")
+
 	fig = plt.figure(figsize=(2.7*width*len(peaks),11))
 	fig.subplots_adjust(wspace=0)
 
-	hide_axis = False
-	for i, peak in enumerate(peaks[1:]):
-		ax = fig.add_subplot(1, len(peaks), i+1)
+	colours = [('b','g'),('r','m'),('k','o')]
+	for dataset, col in zip(args.dataset, colours):
+		try:
+			spec = Spectrum.load_bruker(dataset)
+		except:
+			spec = Spectrum.load_pipe(dataset)
 
-		c3p, c2p = peak
-		
-		h3p, l3p = c3p+width*0.5, c3p-width*0.5
-		h3i, l3i = (s3.i(i, unit='ppm') for i in (h3p, l3p))
-
-		c2f = s2.f(c2p, unit='ppm')
-		h2i, l2i = int(c2f+1), int(c2f)
-
-		striph = (c2f - l2i)*data[h1i:l1i,h2i,h3i:l3i]
-		stripl = (h2i - c2f)*data[h1i:l1i,l2i,h3i:l3i]
-		strip = (stripl + striph)*0.5
-
-		lims = (h3p,l3p,h1p,l1p)
-
-		with warnings.catch_warnings():
-			warnings.simplefilter("ignore")
-			ax.contour( strip, cont, extent=lims, colors='k', linewidths=0.05)
-			ax.contour(-strip, cont, extent=lims, colors='r', linewidths=0.05)
-		ax.invert_xaxis()
-		ax.invert_yaxis()
-		ax.text(.5,.97,"{:3.1f}".format(c2p),horizontalalignment='center',
-			transform=ax.transAxes, rotation=90, backgroundcolor='1')
-
-		ax.set_xticks([c3p])
-		ax.set_yticks(np.linspace(int(l1p),h1p,40))
-		ax.yaxis.grid(linestyle='dotted')
-		if hide_axis:
-			ax.yaxis.set_ticklabels([])
-			ax.yaxis.set_ticks_position('none')
-		hide_axis = True
 		if args.range is not None:
-			ax.set_ylim(*args.range[::-1])
+			h1p, l1p = args.range
+		else:
+			h1p, l1p = spec.axes[0].ppm_limits
 
-		ax.set_title(str(i), color=cm(i))
+		hide_axis = False
+		for i, (lbl, peak) in enumerate(peaks[1:]):
+			ax = fig.add_subplot(1, len(peaks), i+1)
+
+			c3p, c2p = peak
+			h3p, l3p = c3p+width*0.5, c3p-width*0.5
+
+			strip = spec[h1p:l1p,c2p,h3p:l3p]
+
+			with warnings.catch_warnings():
+				warnings.simplefilter("ignore")
+				ax.contour(strip.data, strip.poscont, extent=strip.extent, 
+					colors=col[0], linewidths=0.05)
+				ax.contour(strip.data, strip.negcont, extent=strip.extent, 
+					colors=col[1], linewidths=0.05)
+			ax.invert_xaxis()
+			ax.invert_yaxis()
+			ax.text(.5,.97,"{:3.1f}".format(c2p),horizontalalignment='center',
+				transform=ax.transAxes, rotation=90, backgroundcolor='1')
+
+			ax.set_xticks([c3p])
+			ax.xaxis.set_major_formatter(FormatStrFormatter('%.2f'))
+			ax.set_yticks(np.linspace(int(l1p),int(h1p)+1,40))
+			ax.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
+			ax.yaxis.grid(linestyle='dotted')
+			if hide_axis:
+				ax.yaxis.set_ticklabels([])
+				ax.yaxis.set_ticks_position('none')
+			else:
+				ax.tick_params(right='off')
+			hide_axis = True
+			if args.range is not None:
+				ax.set_ylim(*args.range[::-1])
+
+			ax.set_title(str(lbl), color=cm(i), rotation=90, 
+				verticalalignment='bottom')
+			
 		
-	
 	fig.autofmt_xdate(rotation=90, ha='center')
 	fileName = 'strips.pdf'
 	fig.savefig(fileName, bbox_inches='tight')
@@ -221,44 +406,26 @@ if args:
 
 
 	if args.hsqc:
-		data, scales = load_spectrum(args.hsqc)
-		s2, s3 = scales[0], scales[1]
-	else:
-		data = np.ptp(data, axis=0)
+		hsqc = Spectrum.load_bruker(args.hsqc)
+	# else:
+	# 	data = np.ptp(, axis=0)
 
-	std = np.std(data)
-	cont = make_contours(0.3*std,10*std,10)
-	
-	fig = plt.figure(figsize=(11,8))
-	ax = fig.add_subplot(111)
+		fig = plt.figure(figsize=(11,8))
+		ax = fig.add_subplot(111)
 
-	ax.contour(data, cont, colors='k', extent=s3.ppm_limits()+s2.ppm_limits(),
-		linewidths=0.05)
-	for i, peak in enumerate(peaks):
-		ax.plot(*peak, color='r', marker='x')
-		ax.annotate(str(i), xy=peak, color=cm(i))
+		ax.contour(hsqc.data, hsqc.poscont, colors='b', 
+			extent=hsqc.extent, linewidths=0.05)
+		ax.contour(hsqc.data, hsqc.negcont, colors='g', 
+			extent=hsqc.extent, linewidths=0.05)
+		for i, (lbl, peak) in enumerate(peaks):
+			ax.plot(*peak, color='r', marker='x')
+			ax.annotate(lbl, xy=peak, color=cm(i), fontsize=5)
 
-	ax.invert_xaxis()
-	ax.invert_yaxis()
-	ax.set_xlim(11, 5.5)
-	ax.set_ylim(136,100)
-	fig.savefig('hsqc.pdf')
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+		ax.invert_xaxis()
+		ax.invert_yaxis()
+		ax.set_xlim(11, 5.5)
+		ax.set_ylim(136,100)
+		fig.savefig('hsqc.pdf')
 
 
 
