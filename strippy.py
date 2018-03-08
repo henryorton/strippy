@@ -47,7 +47,7 @@ if __name__=='__main__':
 	parser.add_argument('-o','--opposite',
 		help="reverse f3,f2 peak order to f2,f3",
 		default=False, action="store_true")
-	parser.add_argument('-f','--filtype',
+	parser.add_argument('-f','--filetype',
 		help="file type for plots e.g. pdf, png, eps, ps",
 		default='pdf', type=str)
 	args = parser.parse_args()
