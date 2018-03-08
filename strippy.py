@@ -404,7 +404,7 @@ if args:
 			sys.stdout.flush()
 
 			if subpltcnt==spf:
-				fig, spf = figs[figcnt]
+				spf, fig = figs[figcnt]
 				subpltcnt = 0
 				figcnt += 1
 
