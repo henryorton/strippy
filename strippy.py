@@ -50,8 +50,8 @@ if __name__=='__main__':
 	parser.add_argument('-f','--filetype',
 		help="file type for plots e.g. pdf, png, eps, ps",
 		default='pdf', type=str)
-	parser.add_argument('-j','--stripspp',
-		help="number of strips plotted per page",
+	parser.add_argument('-j','--pages',
+		help="number of pages",
 		type=int)
 	args = parser.parse_args()
 else:
@@ -352,6 +352,16 @@ class Spectrum(object):
 
 
 
+def even_divide(l, n):
+	ppp = l//n
+	rem = l-ppp
+	if rem>0:
+		return [ppp] + even_divide(rem, n-1)
+	else:
+		return [ppp]
+
+
+
 if args:
 	width = args.width
 	peaks = load_peaks(args.peaks, reverse=args.opposite)
@@ -359,18 +369,17 @@ if args:
 	print("Plotting strips ...")
 
 	colours = [('b','g'),('r','m'),('k','o')]
-	count = len(args.dataset)
+	progress = len(args.dataset)
 	total = float(len(peaks)*len(args.dataset))
 
-	if args.stripspp:
-		spp = args.stripspp
+	if args.pages:
+		numfigs = args.pages
 	else:
-		spp = len(peaks)
+		numfigs = 1
 
-	numfigs = len(peaks)//spp + 1
-	stripsInLastFig = len(peaks) - (numfigs-1)*spp
-	figs = [plt.figure(figsize=(2.7*width*spp,11)) for i in range(numfigs-1)]
-	figs.append(plt.figure(figsize=(2.7*width*stripsInLastFig,11)))
+	figs = []
+	for spf in even_divide(len(peaks), numfigs):
+		figs.append((spf, plt.figure(figsize=(2.7*width*spf,11))))
 
 	for dataset, col in zip(args.dataset, colours):
 		try:
@@ -385,13 +394,22 @@ if args:
 
 		hide_axis = False
 		
+		spf, fig = figs[0]
+		subpltcnt = 0
+		figcnt = 0
+
 		for i, (lbl, peak) in enumerate(peaks[1:]):
-			count += 1
-			sys.stdout.write("\rProgress: {:7.1f}%".format((100*count)/total))
+			progress += 1
+			sys.stdout.write("\rProgress: {:7.1f}%".format((100*progress)/total))
 			sys.stdout.flush()
 
-			fig = figs[i//spp]
-			ax = fig.add_subplot(1, spp, i%spp+1)
+			if subpltcnt==spf:
+				fig, spf = figs[figcnt]
+				subpltcnt = 0
+				figcnt += 1
+
+			ax = fig.add_subplot(1, spf, subpltcnt+1)
+			subpltcnt += 1
 
 			c3p, c2p = peak
 			h3p, l3p = c3p+width*0.5, c3p-width*0.5
@@ -426,13 +444,13 @@ if args:
 			ax.set_title(str(lbl), color=cm(i), rotation=90, 
 				verticalalignment='bottom')
 
-
-	for i, fig in enumerate(figs):
+	print()
+	for i, (spf, fig) in enumerate(figs):
 		fig.subplots_adjust(wspace=0)
 		fig.autofmt_xdate(rotation=90, ha='center')
 		fileName = 'strips{}.'.format(i)+args.filetype.replace('.','')
 		fig.savefig(fileName, bbox_inches='tight')
-		print("\n{} file written".format(fileName))
+		print("{} file written".format(fileName))
 		fig.clear()
 
 
