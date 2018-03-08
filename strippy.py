@@ -358,9 +358,6 @@ if args:
 	cm = plt.get_cmap('brg', len(peaks))
 	print("Plotting strips ...")
 
-	fig = plt.figure(figsize=(2.7*width*len(peaks),11)) #A3 size
-	fig.subplots_adjust(wspace=0)
-
 	colours = [('b','g'),('r','m'),('k','o')]
 	count = len(args.dataset)
 	total = float(len(peaks)*len(args.dataset))
@@ -369,6 +366,11 @@ if args:
 		spp = args.stripspp
 	else:
 		spp = len(peaks)
+
+	numfigs = len(peaks)//spp + 1
+	stripsInLastFig = len(peaks) - (numfigs-1)*spp
+	figs = [plt.figure(figsize=(2.7*width*spp,11)) for i in range(numfigs-1)]
+	figs.append(plt.figure(figsize=(2.7*width*stripsInLastFig,11)))
 
 	for dataset, col in zip(args.dataset, colours):
 		try:
@@ -388,7 +390,8 @@ if args:
 			sys.stdout.write("\rProgress: {:7.1f}%".format((100*count)/total))
 			sys.stdout.flush()
 
-			ax = fig.add_subplot(1, len(peaks), i%spp+1)
+			fig = figs[i//spp]
+			ax = fig.add_subplot(1, spp, i%spp+1)
 
 			c3p, c2p = peak
 			h3p, l3p = c3p+width*0.5, c3p-width*0.5
@@ -424,18 +427,13 @@ if args:
 				verticalalignment='bottom')
 
 
-			if (i+1)%spp==0:
-				fig.autofmt_xdate(rotation=90, ha='center')
-				fileName = 'strips{}.'.format(i/spp)+args.filetype.replace('.','')
-				fig.savefig(fileName, bbox_inches='tight')
-				print("\n{} file written".format(fileName))
-				fig.clear()
-			
-	
-	fig.autofmt_xdate(rotation=90, ha='center')
-	fileName = 'strips.'+args.filetype.replace('.','')
-	fig.savefig(fileName, bbox_inches='tight')
-	print("\n{} file written".format(fileName))
+	for i, fig in enumerate(figs):
+		fig.subplots_adjust(wspace=0)
+		fig.autofmt_xdate(rotation=90, ha='center')
+		fileName = 'strips{}.'.format(i)+args.filetype.replace('.','')
+		fig.savefig(fileName, bbox_inches='tight')
+		print("\n{} file written".format(fileName))
+		fig.clear()
 
 
 	if args.hsqc:
