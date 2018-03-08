@@ -50,6 +50,9 @@ if __name__=='__main__':
 	parser.add_argument('-f','--filetype',
 		help="file type for plots e.g. pdf, png, eps, ps",
 		default='pdf', type=str)
+	parser.add_argument('-j','--stripspp',
+		help="number of strips plotted per page",
+		type=int)
 	args = parser.parse_args()
 else:
 	args = None
@@ -359,8 +362,14 @@ if args:
 	fig.subplots_adjust(wspace=0)
 
 	colours = [('b','g'),('r','m'),('k','o')]
-	count = 1
+	count = len(args.dataset)
 	total = float(len(peaks)*len(args.dataset))
+
+	if args.stripspp:
+		spp = args.stripspp
+	else:
+		spp = len(peaks)
+
 	for dataset, col in zip(args.dataset, colours):
 		try:
 			spec = Spectrum.load_bruker(dataset)
@@ -379,7 +388,7 @@ if args:
 			sys.stdout.write("\rProgress: {:7.1f}%".format((100*count)/total))
 			sys.stdout.flush()
 
-			ax = fig.add_subplot(1, len(peaks), i+1)
+			ax = fig.add_subplot(1, len(peaks), i%spp+1)
 
 			c3p, c2p = peak
 			h3p, l3p = c3p+width*0.5, c3p-width*0.5
@@ -413,6 +422,14 @@ if args:
 
 			ax.set_title(str(lbl), color=cm(i), rotation=90, 
 				verticalalignment='bottom')
+
+
+			if (i+1)%spp==0:
+				fig.autofmt_xdate(rotation=90, ha='center')
+				fileName = 'strips{}.'.format(i/spp)+args.filetype.replace('.','')
+				fig.savefig(fileName, bbox_inches='tight')
+				print("\n{} file written".format(fileName))
+				fig.clear()
 			
 	
 	fig.autofmt_xdate(rotation=90, ha='center')
