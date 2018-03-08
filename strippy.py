@@ -352,10 +352,12 @@ if args:
 	cm = plt.get_cmap('brg', len(peaks))
 	print("Plotting strips ...")
 
-	fig = plt.figure(figsize=(16.5,11.7)) #A3 size
+	fig = plt.figure(figsize=(11.7,16.5)) #A3 size
 	fig.subplots_adjust(wspace=0)
 
 	colours = [('b','g'),('r','m'),('k','o')]
+	count = 0
+	total = float(len(peaks)*len(args.dataset))
 	for dataset, col in zip(args.dataset, colours):
 		try:
 			spec = Spectrum.load_bruker(dataset)
@@ -368,11 +370,10 @@ if args:
 			h1p, l1p = spec.axes[0].ppm_limits
 
 		hide_axis = False
-		count = 0
-		total = float(len(peaks)*len(args.dataset))
+		
 		for i, (lbl, peak) in enumerate(peaks[1:]):
 			count += 1
-			sys.stdout.write("Progress: {:7.1f}%".format(count/total))
+			sys.stdout.write("\rProgress: {:7.1f}%".format(count/total))
 			sys.stdout.flush()
 
 			ax = fig.add_subplot(1, len(peaks), i+1)
