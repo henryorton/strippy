@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import sys
 import re
 
 import matplotlib as mpl
@@ -351,7 +352,7 @@ if args:
 	cm = plt.get_cmap('brg', len(peaks))
 	print("Plotting strips ...")
 
-	fig = plt.figure(figsize=(2.7*width*len(peaks),11))
+	fig = plt.figure(figsize=(16.5,11.7)) #A3 size
 	fig.subplots_adjust(wspace=0)
 
 	colours = [('b','g'),('r','m'),('k','o')]
@@ -367,7 +368,12 @@ if args:
 			h1p, l1p = spec.axes[0].ppm_limits
 
 		hide_axis = False
+		count = 0
+		total = float(len(peaks)*len(args.dataset))
 		for i, (lbl, peak) in enumerate(peaks[1:]):
+			count += 1
+			sys.stdout.write("Progress: {:5.1f}%".format(count/total))
+
 			ax = fig.add_subplot(1, len(peaks), i+1)
 
 			c3p, c2p = peak
