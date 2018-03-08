@@ -383,7 +383,6 @@ if args:
 		figs.append([spf, fig])
 
 
-	print(figs)
 	for dataset, col in zip(args.dataset, colours):
 		try:
 			spec = Spectrum.load_bruker(dataset)
@@ -407,6 +406,7 @@ if args:
 			sys.stdout.flush()
 
 			if subpltcnt==spf:
+				hide_axis = False
 				figcnt += 1
 				spf, fig = figs[figcnt]
 				subpltcnt = 0
