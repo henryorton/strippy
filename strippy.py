@@ -372,7 +372,8 @@ if args:
 		total = float(len(peaks)*len(args.dataset))
 		for i, (lbl, peak) in enumerate(peaks[1:]):
 			count += 1
-			sys.stdout.write("Progress: {:5.1f}%".format(count/total))
+			sys.stdout.write("Progress: {:7.1f}%".format(count/total))
+			sys.stdout.flush()
 
 			ax = fig.add_subplot(1, len(peaks), i+1)
 
