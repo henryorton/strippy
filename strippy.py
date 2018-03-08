@@ -45,7 +45,7 @@ if __name__=='__main__':
 		type=str)
 	parser.add_argument('-o','--opposite',
 		help="reverse f3,f2 peak order to f2,f3",
-		type=bool)
+		default=False, action="store_true")
 	args = parser.parse_args()
 else:
 	args = None
