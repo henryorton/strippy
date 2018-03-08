@@ -407,8 +407,6 @@ if args:
 
 	if args.hsqc:
 		hsqc = Spectrum.load_bruker(args.hsqc)
-	# else:
-	# 	data = np.ptp(, axis=0)
 
 		fig = plt.figure(figsize=(11,8))
 		ax = fig.add_subplot(111)
@@ -418,6 +416,7 @@ if args:
 		ax.contour(hsqc.data, hsqc.negcont, colors='g', 
 			extent=hsqc.extent, linewidths=0.05)
 		for i, (lbl, peak) in enumerate(peaks):
+			print i, lbl, peak
 			ax.plot(*peak, color='r', marker='x')
 			ax.annotate(lbl, xy=peak, color=cm(i), fontsize=5)
 
@@ -426,6 +425,7 @@ if args:
 		ax.set_xlim(11, 5.5)
 		ax.set_ylim(136,100)
 		fig.savefig('hsqc.pdf')
+		print("hsqc.pdf file written")
 
 
 
