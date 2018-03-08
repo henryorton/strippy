@@ -405,7 +405,7 @@ if args:
 			
 		
 	fig.autofmt_xdate(rotation=90, ha='center')
-	fileName = 'strips.pdf'
+	fileName = 'strips.ps'
 	fig.savefig(fileName, bbox_inches='tight')
 	print("{} file written".format(fileName))
 
@@ -421,7 +421,6 @@ if args:
 		ax.contour(hsqc.data, hsqc.negcont, colors='g', 
 			extent=hsqc.extent, linewidths=0.05)
 		for i, (lbl, peak) in enumerate(peaks):
-			print i, lbl, peak
 			ax.plot(*peak, color='r', marker='x')
 			ax.annotate(lbl, xy=peak, color=cm(i), fontsize=5)
 
@@ -429,7 +428,7 @@ if args:
 		ax.invert_yaxis()
 		ax.set_xlim(11, 5.5)
 		ax.set_ylim(136,100)
-		fig.savefig('hsqc.pdf')
+		fig.savefig('hsqc.ps')
 		print("hsqc.pdf file written")
 
 
