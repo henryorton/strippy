@@ -376,7 +376,7 @@ if args:
 		
 		for i, (lbl, peak) in enumerate(peaks[1:]):
 			count += 1
-			sys.stdout.write("\rProgress: {:7.1f}%".format(100*count/total))
+			sys.stdout.write("\rProgress: {:7.1f}%".format((100*count)/total))
 			sys.stdout.flush()
 
 			ax = fig.add_subplot(1, len(peaks), i+1)
