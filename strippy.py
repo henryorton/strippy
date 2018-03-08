@@ -352,7 +352,7 @@ if args:
 	cm = plt.get_cmap('brg', len(peaks))
 	print("Plotting strips ...")
 
-	fig = plt.figure(figsize=(16.5,11.7)) #A3 size
+	fig = plt.figure(figsize=(2.7*width*len(peaks),11)) #A3 size
 	fig.subplots_adjust(wspace=0)
 
 	colours = [('b','g'),('r','m'),('k','o')]
