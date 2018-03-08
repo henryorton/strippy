@@ -373,7 +373,7 @@ if args:
 		
 		for i, (lbl, peak) in enumerate(peaks[1:]):
 			count += 1
-			sys.stdout.write("\rProgress: {:7.1f}%".format(count/total))
+			sys.stdout.write("\rProgress: {:7.1f}%".format(100*count/total))
 			sys.stdout.flush()
 
 			ax = fig.add_subplot(1, len(peaks), i+1)
@@ -411,11 +411,11 @@ if args:
 			ax.set_title(str(lbl), color=cm(i), rotation=90, 
 				verticalalignment='bottom')
 			
-		
+	
 	fig.autofmt_xdate(rotation=90, ha='center')
-	fileName = 'strips.ps'
+	fileName = 'strips.pdf'
 	fig.savefig(fileName, bbox_inches='tight')
-	print("{} file written".format(fileName))
+	print("\n{} file written".format(fileName))
 
 
 	if args.hsqc:
@@ -436,7 +436,7 @@ if args:
 		ax.invert_yaxis()
 		ax.set_xlim(11, 5.5)
 		ax.set_ylim(136,100)
-		fig.savefig('hsqc.ps')
+		fig.savefig('hsqc.pdf')
 		print("hsqc.pdf file written")
 
 
