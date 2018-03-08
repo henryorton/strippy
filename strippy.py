@@ -43,13 +43,16 @@ if __name__=='__main__':
 	parser.add_argument('-s','--hsqc',
 		help="directory of nmrPipe 2D HSQC data",
 		type=str)
+	parser.add_argument('-o','--opposite',
+		help="reverse f3,f2 peak order to f2,f3",
+		type=bool)
 	args = parser.parse_args()
 else:
 	args = None
 
 
 
-def load_peaks(fileName):
+def load_peaks(fileName, reverse=False):
 	"""
 	Parse peaks file to list of tuples that specify an identifier and 
 	peak position in ppm. If 3 columns are provided, the first column is
@@ -74,6 +77,8 @@ def load_peaks(fileName):
 			splt = line.split()
 			try:
 				pos = np.array(splt[-2:], dtype=float)
+				if reverse:
+					pos = pos[::-1]
 				if len(splt)==3:
 					peaks.append((splt[0], pos))
 				else:
@@ -342,7 +347,7 @@ class Spectrum(object):
 
 if args:
 	width = args.width
-	peaks = load_peaks(args.peaks)
+	peaks = load_peaks(args.peaks, reverse=args.opposite)
 	cm = plt.get_cmap('brg', len(peaks))
 	print("Plotting strips ...")
 
