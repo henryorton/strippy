@@ -356,7 +356,7 @@ if args:
 	fig.subplots_adjust(wspace=0)
 
 	colours = [('b','g'),('r','m'),('k','o')]
-	count = 0
+	count = 1
 	total = float(len(peaks)*len(args.dataset))
 	for dataset, col in zip(args.dataset, colours):
 		try:
