@@ -379,8 +379,11 @@ if args:
 
 	figs = []
 	for spf in even_divide(len(peaks), numfigs):
-		figs.append((spf, plt.figure(figsize=(2.7*width*spf,11))))
+		fig = plt.figure(figsize=(2.7*width*spf,11))
+		figs.append([spf, fig])
 
+
+	print(figs)
 	for dataset, col in zip(args.dataset, colours):
 		try:
 			spec = Spectrum.load_bruker(dataset)
@@ -394,9 +397,9 @@ if args:
 
 		hide_axis = False
 		
-		spf, fig = figs[0]
-		subpltcnt = 0
 		figcnt = 0
+		subpltcnt = 0
+		spf, fig = figs[figcnt]
 
 		for i, (lbl, peak) in enumerate(peaks[1:]):
 			progress += 1
@@ -404,12 +407,12 @@ if args:
 			sys.stdout.flush()
 
 			if subpltcnt==spf:
+				figcnt += 1
 				spf, fig = figs[figcnt]
 				subpltcnt = 0
-				figcnt += 1
 
-			ax = fig.add_subplot(1, spf, subpltcnt+1)
 			subpltcnt += 1
+			ax = fig.add_subplot(1, spf, subpltcnt)
 
 			c3p, c2p = peak
 			h3p, l3p = c3p+width*0.5, c3p-width*0.5
@@ -444,14 +447,14 @@ if args:
 			ax.set_title(str(lbl), color=cm(i), rotation=90, 
 				verticalalignment='bottom')
 
-	print()
+
+	print('')
 	for i, (spf, fig) in enumerate(figs):
 		fig.subplots_adjust(wspace=0)
 		fig.autofmt_xdate(rotation=90, ha='center')
 		fileName = 'strips{}.'.format(i)+args.filetype.replace('.','')
 		fig.savefig(fileName, bbox_inches='tight')
 		print("{} file written".format(fileName))
-		fig.clear()
 
 
 	if args.hsqc:
