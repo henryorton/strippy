@@ -47,6 +47,9 @@ if __name__=='__main__':
 	parser.add_argument('-o','--opposite',
 		help="reverse f3,f2 peak order to f2,f3",
 		default=False, action="store_true")
+	parser.add_argument('-f','--filtype',
+		help="file type for plots e.g. pdf, png, eps, ps",
+		default='pdf', type=str)
 	args = parser.parse_args()
 else:
 	args = None
@@ -413,7 +416,7 @@ if args:
 			
 	
 	fig.autofmt_xdate(rotation=90, ha='center')
-	fileName = 'strips.pdf'
+	fileName = 'strips.'+args.filetype.replace('.','')
 	fig.savefig(fileName, bbox_inches='tight')
 	print("\n{} file written".format(fileName))
 
@@ -436,8 +439,9 @@ if args:
 		ax.invert_yaxis()
 		ax.set_xlim(11, 5.5)
 		ax.set_ylim(136,100)
-		fig.savefig('hsqc.pdf')
-		print("hsqc.pdf file written")
+		hsqcFileName = 'hsqc.'+args.filetype.replace('.','')
+		fig.savefig(hsqcFileName)
+		print("{} file written".format(hsqcFileName))
 
 
 
