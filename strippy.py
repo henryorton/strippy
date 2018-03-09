@@ -7,6 +7,7 @@ import matplotlib as mpl
 mpl.use('Agg')
 from matplotlib import pyplot as plt
 from matplotlib.ticker import FormatStrFormatter
+from matplotlib.backends.backend_pdf import PdfPages
 import argparse
 import warnings
 
@@ -47,9 +48,6 @@ if __name__=='__main__':
 	parser.add_argument('-o','--opposite',
 		help="reverse f3,f2 peak order to f2,f3",
 		default=False, action="store_true")
-	parser.add_argument('-f','--filetype',
-		help="file type for plots e.g. pdf, png, eps, ps",
-		default='pdf', type=str)
 	parser.add_argument('-j','--pages',
 		help="number of pages",
 		type=int)
@@ -87,12 +85,15 @@ def load_peaks(fileName, reverse=False):
 				if reverse:
 					pos = pos[::-1]
 				if len(splt)==3:
-					peaks.append((splt[0], pos))
+					peaks.append([splt[0], pos])
 				else:
-					peaks.append((i, pos))
+					peaks.append([i, pos])
 					i += 1
 			except ValueError:
 				print("Line ignored in peaks file: {}".format(repr(line)))
+		cm = plt.get_cmap('brg', len(peaks))
+		for i, peak in enumerate(peaks):
+			peak += [cm(i)]
 	return peaks
 
 
@@ -350,22 +351,25 @@ class Spectrum(object):
 	def negcont(self):
 		return self.cont[np.where(self.cont<0)]
 
+	def projection(self, axis):
+		data = np.max(self.data, axis=axis)
+		axes = [ax for i,ax in enumerate(self.axes) if i!=axis]
+		return self.__class__(data, axes, self.cont)
 
 
-def even_divide(l, n):
-	ppp = l//n
-	rem = l-ppp
-	if rem>0:
-		return [ppp] + even_divide(rem, n-1)
+
+def even_divide(lst, n):
+	p = len(lst) // n
+	if len(lst)-p > 0:
+		return [lst[:p]] + even_divide(lst[p:], n-1)
 	else:
-		return [ppp]
+		return [lst]
 
 
 
 if args:
 	width = args.width
 	peaks = load_peaks(args.peaks, reverse=args.opposite)
-	cm = plt.get_cmap('brg', len(peaks))
 	print("Plotting strips ...")
 
 	colours = [('b','g'),('r','m'),('k','o')]
@@ -374,14 +378,11 @@ if args:
 
 	if args.pages:
 		numfigs = args.pages
+		figs = [plt.figure(figsize=(16.5,11.7)) for i in range(numfigs)]
+
 	else:
 		numfigs = 1
-
-	figs = []
-	for spf in even_divide(len(peaks), numfigs):
-		fig = plt.figure(figsize=(2.7*width*spf,11))
-		figs.append([spf, fig])
-
+		figs = [plt.figure(figsize=(2.7*width*len(peaks),11))]
 
 	for dataset, col in zip(args.dataset, colours):
 		try:
@@ -394,90 +395,82 @@ if args:
 		else:
 			h1p, l1p = spec.axes[0].ppm_limits
 
-		hide_axis = False
-		
-		figcnt = 0
-		subpltcnt = 0
-		spf, fig = figs[figcnt]
+		for peakset, fig in zip(even_divide(peaks, numfigs), figs):
+			hide_axis = False
+			subpltcnt = 1
+			for lbl, peak, lblcol in peakset:
+				progress += 1
+				sys.stdout.write("\rProgress: {:7.1f}%".format((100*progress)/total))
+				sys.stdout.flush()
 
-		for i, (lbl, peak) in enumerate(peaks[1:]):
-			progress += 1
-			sys.stdout.write("\rProgress: {:7.1f}%".format((100*progress)/total))
-			sys.stdout.flush()
+				ax = fig.add_subplot(1, len(peakset), subpltcnt)
+				subpltcnt += 1
 
-			if subpltcnt==spf:
-				hide_axis = False
-				figcnt += 1
-				spf, fig = figs[figcnt]
-				subpltcnt = 0
+				c3p, c2p = peak
+				h3p, l3p = c3p+width*0.5, c3p-width*0.5
 
-			subpltcnt += 1
-			ax = fig.add_subplot(1, spf, subpltcnt)
+				strip = spec[h1p:l1p,c2p,h3p:l3p]
 
-			c3p, c2p = peak
-			h3p, l3p = c3p+width*0.5, c3p-width*0.5
+				with warnings.catch_warnings():
+					warnings.simplefilter("ignore")
+					ax.contour(strip.data, strip.poscont, extent=strip.extent, 
+						colors=col[0], linewidths=0.05)
+					ax.contour(strip.data, strip.negcont, extent=strip.extent, 
+						colors=col[1], linewidths=0.05)
+				ax.invert_xaxis()
+				ax.invert_yaxis()
+				ax.text(.5,.97,"{:3.1f}".format(c2p),horizontalalignment='center',
+					transform=ax.transAxes, rotation=90, backgroundcolor='1')
 
-			strip = spec[h1p:l1p,c2p,h3p:l3p]
+				ax.set_xticks([c3p])
+				ax.xaxis.set_major_formatter(FormatStrFormatter('%.2f'))
+				ax.set_yticks(np.linspace(int(l1p),int(h1p)+1,40))
+				ax.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
+				ax.yaxis.grid(linestyle='dotted')
+				if hide_axis:
+					ax.yaxis.set_ticklabels([])
+					ax.yaxis.set_ticks_position('none')
+				else:
+					ax.tick_params(right='off')
+				hide_axis = True
+				if args.range is not None:
+					ax.set_ylim(*args.range[::-1])
 
-			with warnings.catch_warnings():
-				warnings.simplefilter("ignore")
-				ax.contour(strip.data, strip.poscont, extent=strip.extent, 
-					colors=col[0], linewidths=0.05)
-				ax.contour(strip.data, strip.negcont, extent=strip.extent, 
-					colors=col[1], linewidths=0.05)
-			ax.invert_xaxis()
-			ax.invert_yaxis()
-			ax.text(.5,.97,"{:3.1f}".format(c2p),horizontalalignment='center',
-				transform=ax.transAxes, rotation=90, backgroundcolor='1')
+				ax.set_title(str(lbl), color=lblcol, rotation=90, 
+					verticalalignment='bottom')
 
-			ax.set_xticks([c3p])
-			ax.xaxis.set_major_formatter(FormatStrFormatter('%.2f'))
-			ax.set_yticks(np.linspace(int(l1p),int(h1p)+1,40))
-			ax.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
-			ax.yaxis.grid(linestyle='dotted')
-			if hide_axis:
-				ax.yaxis.set_ticklabels([])
-				ax.yaxis.set_ticks_position('none')
-			else:
-				ax.tick_params(right='off')
-			hide_axis = True
-			if args.range is not None:
-				ax.set_ylim(*args.range[::-1])
-
-			ax.set_title(str(lbl), color=cm(i), rotation=90, 
-				verticalalignment='bottom')
-
-
-	print('')
-	for i, (spf, fig) in enumerate(figs):
-		fig.subplots_adjust(wspace=0)
-		fig.autofmt_xdate(rotation=90, ha='center')
-		fileName = 'strips{}.'.format(i)+args.filetype.replace('.','')
-		fig.savefig(fileName, bbox_inches='tight')
-		print("{} file written".format(fileName))
-
+	print('\nDrawing figures ...')
+	fileName = 'strips.pdf'
+	with PdfPages(fileName) as pdf:
+		for fig in figs:
+			fig.subplots_adjust(wspace=0)
+			fig.autofmt_xdate(rotation=90, ha='center')
+			pdf.savefig(fig, bbox_inches='tight')
+	print("{} file written".format(fileName))
 
 	if args.hsqc:
+		print("Plotting HSQC")
 		hsqc = Spectrum.load_bruker(args.hsqc)
+	else:
+		print("Plotting projection")
+		hsqc = spec.projection(0)
 
-		fig = plt.figure(figsize=(11,8))
-		ax = fig.add_subplot(111)
+	fig = plt.figure(figsize=(16.5,11.7))
+	ax = fig.add_subplot(111)
 
-		ax.contour(hsqc.data, hsqc.poscont, colors='b', 
-			extent=hsqc.extent, linewidths=0.05)
-		ax.contour(hsqc.data, hsqc.negcont, colors='g', 
-			extent=hsqc.extent, linewidths=0.05)
-		for i, (lbl, peak) in enumerate(peaks):
-			ax.plot(*peak, color='r', marker='x')
-			ax.annotate(lbl, xy=peak, color=cm(i), fontsize=5)
+	ax.contour(hsqc.data, hsqc.poscont, colors='b', 
+		extent=hsqc.extent, linewidths=0.05)
+	ax.contour(hsqc.data, hsqc.negcont, colors='g', 
+		extent=hsqc.extent, linewidths=0.05)
+	for lbl, peak, lblcol in peaks:
+		ax.plot(*peak, color='r', marker='x')
+		ax.annotate(lbl, xy=peak, color=lblcol, fontsize=5)
 
-		ax.invert_xaxis()
-		ax.invert_yaxis()
-		ax.set_xlim(11, 5.5)
-		ax.set_ylim(136,100)
-		hsqcFileName = 'hsqc.'+args.filetype.replace('.','')
-		fig.savefig(hsqcFileName)
-		print("{} file written".format(hsqcFileName))
+	ax.invert_xaxis()
+	ax.invert_yaxis()
+	hsqcFileName = 'hsqc.pdf'
+	fig.savefig(hsqcFileName, bbox_inches='tight')
+	print("{} file written".format(hsqcFileName))
 
 
 
