@@ -359,6 +359,12 @@ class Spectrum(object):
 		axes = [ax for i,ax in enumerate(self.axes) if i!=axis]
 		return self.__class__(data, axes, self.cont)
 
+	def reorder_axes(self, newAxisOrder):
+		self.axes = [self.axes[i] for i in newAxisOrder]
+		self.data = np.moveaxis(self.data, [0,1,2], newAxisOrder)
+
+
+
 
 
 def even_divide(lst, n):
