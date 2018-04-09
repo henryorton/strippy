@@ -51,6 +51,9 @@ if __name__=='__main__':
 	parser.add_argument('-a','--projectionaxis',
 		help="the axis about which slices will be taken: x or y or z",
 		default='y', type=str)
+	parser.add_argument('-q','--axisorder',
+		help="the order of axes for the dataset",
+		default=('z','y','x'), type=str, nargs=3)
 	parser.add_argument('-j','--pages',
 		help="number of pages",
 		type=int)
@@ -389,6 +392,7 @@ if args:
 	progress = len(args.dataset)
 	total = float(len(peaks)*len(args.dataset))
 	projAxis = axis_dict[args.projectionaxis]
+	axisOrder = [axis_dict[i] for i in args.axisorder]
 
 	if args.pages:
 		numfigs = args.pages
@@ -403,6 +407,8 @@ if args:
 			spec = Spectrum.load_bruker(dataset)
 		except:
 			spec = Spectrum.load_pipe(dataset)
+
+		spec.reorder_axes(axisOrder)
 
 		if args.range is not None:
 			h1p, l1p = args.range
@@ -423,12 +429,7 @@ if args:
 				c3p, c2p = peak
 				h3p, l3p = c3p+width*0.5, c3p-width*0.5
 
-				if projAxis==0:
-					strip = spec[c2p,h1p:l1p,h3p:l3p]
-				elif projAxis==1:
-					strip = spec[h1p:l1p,c2p,h3p:l3p]
-				elif projAxis==2:
-					strip = spec[h1p:l1p,h3p:l3p,c2p]
+				strip = spec[h1p:l1p,c2p,h3p:l3p]
 
 				with warnings.catch_warnings():
 					warnings.simplefilter("ignore")
