@@ -22,7 +22,7 @@ The strips will have with 0.15 ppm.
 The contour levels are plotted from 0.1 to 10 with 10 levels total,
 each contour has i**(2**0.5) scaling, and spectrum values are normalised by the
 standard deviation.
-Plotting in the f1 dimension in from 0.5 to 6.0 ppm.
+Plotting in the f1 dimension is from 0.5 to 6.0 ppm.
 """
 
 
@@ -48,6 +48,9 @@ if __name__=='__main__':
 	parser.add_argument('-o','--opposite',
 		help="reverse f3,f2 peak order to f2,f3",
 		default=False, action="store_true")
+	parser.add_argument('-a','--projectionaxis',
+		help="the axis about which slices will be taken: x or y or z",
+		default='y', type=str)
 	parser.add_argument('-j','--pages',
 		help="number of pages",
 		type=int)
@@ -365,7 +368,11 @@ def even_divide(lst, n):
 	else:
 		return [lst]
 
-
+axis_dict = {
+	'z':0,
+	'y':1,
+	'x':2
+}
 
 if args:
 	width = args.width
@@ -375,6 +382,7 @@ if args:
 	colours = [('b','g'),('r','m'),('k','o')]
 	progress = len(args.dataset)
 	total = float(len(peaks)*len(args.dataset))
+	projAxis = axis_dict[args.projectionaxis]
 
 	if args.pages:
 		numfigs = args.pages
@@ -409,7 +417,12 @@ if args:
 				c3p, c2p = peak
 				h3p, l3p = c3p+width*0.5, c3p-width*0.5
 
-				strip = spec[h1p:l1p,c2p,h3p:l3p]
+				if projAxis==0:
+					strip = spec[c2p,h1p:l1p,h3p:l3p]
+				elif projAxis==1:
+					strip = spec[h1p:l1p,c2p,h3p:l3p]
+				elif projAxis==2:
+					strip = spec[h1p:l1p,h3p:l3p,c2p]
 
 				with warnings.catch_warnings():
 					warnings.simplefilter("ignore")
@@ -453,7 +466,7 @@ if args:
 		hsqc = Spectrum.load_bruker(args.hsqc)
 	else:
 		print("Plotting projection")
-		hsqc = spec.projection(0)
+		hsqc = spec.projection(projAxis)
 
 	fig = plt.figure(figsize=(16.5,11.7))
 	ax = fig.add_subplot(111)
