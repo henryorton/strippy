@@ -50,7 +50,7 @@ if __name__=='__main__':
 		default=False, action="store_true")
 	parser.add_argument('-a','--projectionaxis',
 		help="the axis about which slices will be taken: x or y or z",
-		default='y', type=str)
+		default='z', type=str)
 	parser.add_argument('-q','--axisorder',
 		help="the order of axes for the dataset",
 		default=('z','y','x'), type=str, nargs=3)
@@ -367,7 +367,11 @@ class Spectrum(object):
 		self.data = np.moveaxis(self.data, [0,1,2], newAxisOrder)
 
 
-
+def print_progress(counter, total):
+	sys.stdout.write("\rProgress: {:7.1f}%".format((100.*counter)/total))
+	sys.stdout.flush()
+	if counter==total:
+		print("")
 
 
 def even_divide(lst, n):
@@ -386,11 +390,8 @@ axis_dict = {
 if args:
 	width = args.width
 	peaks = load_peaks(args.peaks, reverse=args.opposite)
-	print("Plotting strips ...")
-
+	
 	colours = [('b','g'),('r','m'),('k','o')]
-	progress = len(args.dataset)
-	total = float(len(peaks)*len(args.dataset))
 	projAxis = axis_dict[args.projectionaxis]
 	axisOrder = [axis_dict[i] for i in args.axisorder]
 
@@ -402,6 +403,34 @@ if args:
 		numfigs = 1
 		figs = [plt.figure(figsize=(2.7*width*len(peaks),11))]
 
+	print("Making subplots ...")
+	total = len(peaks)
+	progress = 0
+	plotAxes = []
+	for peakset, fig in zip(even_divide(peaks, numfigs), figs):
+		hide_axis = False
+		subpltcnt = 1
+		for lbl, peak, lblcol in peakset:
+			progress += 1
+			print_progress(progress, total)
+
+			ax = fig.add_subplot(1, len(peakset), subpltcnt)
+			if subpltcnt==1:
+				setattr(ax, 'customStartingAxisBool', True)
+			else:
+				setattr(ax, 'customStartingAxisBool', False)
+			plotAxes.append(ax)
+			subpltcnt += 1
+			setattr(ax, 'customPeakPosition', peak)
+			c3p, c2p = peak
+			ax.text(.5,.97,"{:3.1f}".format(c2p),horizontalalignment='center',
+				transform=ax.transAxes, rotation=90, backgroundcolor='1')
+			ax.set_title(str(lbl), color=lblcol, rotation=90, 
+				verticalalignment='bottom')
+
+	print("Plotting strips ...")
+	total = len(plotAxes)*len(args.dataset)
+	progress = 0
 	for dataset, col in zip(args.dataset, colours):
 		try:
 			spec = Spectrum.load_bruker(dataset)
@@ -415,64 +444,66 @@ if args:
 		else:
 			h1p, l1p = spec.axes[0].ppm_limits
 
-		for peakset, fig in zip(even_divide(peaks, numfigs), figs):
-			hide_axis = False
-			subpltcnt = 1
-			for lbl, peak, lblcol in peakset:
-				progress += 1
-				sys.stdout.write("\rProgress: {:7.1f}%".format((100*progress)/total))
-				sys.stdout.flush()
+		for ax in plotAxes:
+			progress += 1
+			print_progress(progress, total)
 
-				ax = fig.add_subplot(1, len(peakset), subpltcnt)
-				subpltcnt += 1
+			c3p, c2p = ax.customPeakPosition
+			h3p, l3p = c3p+width*0.5, c3p-width*0.5
+			strip = spec[h1p:l1p,c2p,h3p:l3p]
 
-				c3p, c2p = peak
-				h3p, l3p = c3p+width*0.5, c3p-width*0.5
+			with warnings.catch_warnings():
+				warnings.simplefilter("ignore")
+				ax.contour(strip.data, strip.poscont, extent=strip.extent, 
+					colors=col[0], linewidths=0.05)
+				ax.contour(strip.data, strip.negcont, extent=strip.extent, 
+					colors=col[1], linewidths=0.05)
 
-				strip = spec[h1p:l1p,c2p,h3p:l3p]
+	print("Adjusting axes ...")
+	total = len(plotAxes)
+	progress = 0
+	for ax in plotAxes:
+		progress += 1
+		print_progress(progress, total)
+		c3p, c2p = ax.customPeakPosition
+		
+		ax.set_xticks([c3p])
+		ax.xaxis.set_major_formatter(FormatStrFormatter('%.2f'))
+		ax.invert_xaxis()
 
-				with warnings.catch_warnings():
-					warnings.simplefilter("ignore")
-					ax.contour(strip.data, strip.poscont, extent=strip.extent, 
-						colors=col[0], linewidths=0.05)
-					ax.contour(strip.data, strip.negcont, extent=strip.extent, 
-						colors=col[1], linewidths=0.05)
-				ax.invert_xaxis()
-				ax.invert_yaxis()
-				ax.text(.5,.97,"{:3.1f}".format(c2p),horizontalalignment='center',
-					transform=ax.transAxes, rotation=90, backgroundcolor='1')
+		if args.range is not None:
+			h1p, l1p = args.range
+		else:
+			h1p, l1p = ax.get_ylim()
+		ax.set_yticks(np.linspace(int(l1p),int(h1p)+1,40))
+		ax.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
+		ax.yaxis.grid(linestyle='dotted')
+		ax.invert_yaxis()
 
-				ax.set_xticks([c3p])
-				ax.xaxis.set_major_formatter(FormatStrFormatter('%.2f'))
-				ax.set_yticks(np.linspace(int(l1p),int(h1p)+1,40))
-				ax.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
-				ax.yaxis.grid(linestyle='dotted')
-				if hide_axis:
-					ax.yaxis.set_ticklabels([])
-					ax.yaxis.set_ticks_position('none')
-				else:
-					ax.tick_params(right='off')
-				hide_axis = True
-				if args.range is not None:
-					ax.set_ylim(*args.range[::-1])
+		if ax.customStartingAxisBool:
+			ax.tick_params(right='off')			
+		else:
+			ax.yaxis.set_ticklabels([])
+			ax.yaxis.set_ticks_position('none')
 
-				ax.set_title(str(lbl), color=lblcol, rotation=90, 
-					verticalalignment='bottom')
-
-	print('\nDrawing figures ...')
+	print('Drawing figures ...')
+	total = len(figs)
+	progress = 0
 	fileName = 'strips.pdf'
 	with PdfPages(fileName) as pdf:
 		for fig in figs:
 			fig.subplots_adjust(wspace=0)
 			fig.autofmt_xdate(rotation=90, ha='center')
 			pdf.savefig(fig, bbox_inches='tight')
+			progress += 1
+			print_progress(progress, total)
 	print("{} file written".format(fileName))
 
 	if args.hsqc:
-		print("Plotting HSQC")
+		print("Plotting HSQC ...")
 		hsqc = Spectrum.load_bruker(args.hsqc)
 	else:
-		print("Plotting projection")
+		print("Plotting projection ...")
 		hsqc = spec.projection(projAxis)
 
 	fig = plt.figure(figsize=(16.5,11.7))
