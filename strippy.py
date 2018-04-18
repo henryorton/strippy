@@ -581,10 +581,10 @@ if args:
 
 			with warnings.catch_warnings():
 				warnings.simplefilter("ignore")
-				if spec.poscont:
+				if spec.poscont is not None:
 					ax.contour(strip.data, strip.poscont, extent=strip.extent, 
 						colors=col[0], linewidths=0.05)
-				if spec.negcont:
+				if spec.negcont is not None:
 					ax.contour(strip.data, strip.negcont, extent=strip.extent, 
 						colors=col[1], linewidths=0.05)
 
@@ -638,10 +638,10 @@ if args:
 	fig = plt.figure(figsize=(16.5,11.7))
 	ax = fig.add_subplot(111)
 
-	if spec.poscont:
+	if spec.poscont is not None:
 		ax.contour(hsqc.data, hsqc.poscont, colors='b', 
 			extent=hsqc.extent, linewidths=0.05)
-	if spec.negcont:
+	if spec.negcont is not None:
 		ax.contour(hsqc.data, hsqc.negcont, colors='g', 
 			extent=hsqc.extent, linewidths=0.05)
 	for lbl, peak, lblcol in peaks:
