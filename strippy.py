@@ -18,7 +18,7 @@ Typical usage:
 python strippy.py -d 14/pdata/3 -p peaks.list -w 0.15 -c 0.1 10 10 -r 0.5 6.0. 
 This would plot processed data 3 from dataset 14.
 The peak list has columns 'f3 f2' separated by spaces.
-The strips will have with 0.15 ppm.
+The strips will have width 0.15 ppm.
 The contour levels are plotted from 0.1 to 10 with 10 levels total,
 each contour has i**(2**0.5) scaling, and spectrum values are normalised by the
 standard deviation.
@@ -26,7 +26,7 @@ Plotting in the f1 dimension is from 0.5 to 6.0 ppm.
 """
 
 
-if __name__=='__main__':
+if __name__=='__main__' and len(sys.argv)>1:
 	parser = argparse.ArgumentParser(description=long_description)
 	parser.add_argument('-d','--dataset',
 		help="directory of nmrPipe 3D data",type=str,nargs='+')
@@ -40,7 +40,7 @@ if __name__=='__main__':
 		help="3 numbers specifying the contour levels: 'low high number'",
 		type=float, nargs=3)
 	parser.add_argument('-r','--range',
-		help="Range to be plotted in f1 dimension e.g. '0.0 6.0'",
+		help="Range IN PPM to be plotted in f1 dimension e.g. '0.0 6.0'",
 		type=float, nargs=2)
 	parser.add_argument('-s','--hsqc',
 		help="directory of nmrPipe 2D HSQC data",
@@ -52,10 +52,10 @@ if __name__=='__main__':
 		help="the axis about which slices will be taken: x or y or z",
 		default='z', type=str)
 	parser.add_argument('-q','--axisorder',
-		help="the order of axes for the dataset",
+		help="the order of axes for the dataset, default: x y z",
 		default=('z','y','x'), type=str, nargs=3)
 	parser.add_argument('-j','--pages',
-		help="number of pages",
+		help="number of pages in final pdf",
 		type=int)
 	args = parser.parse_args()
 else:
@@ -68,7 +68,7 @@ def load_peaks(fileName, reverse=False):
 	Parse peaks file to list of tuples that specify an identifier and 
 	peak position in ppm. If 3 columns are provided, the first column is
 	assumed to be the peak identifier (such as a sequence/residue). If two
-	columns are provided, the 
+	columns are provided, the peak identifier is set to an integer.
 
 	Parameters
 	----------
@@ -106,8 +106,37 @@ def load_peaks(fileName, reverse=False):
 
 
 class Axis(object):
+	"""
+	Stores information about the axis ppm values.
+	Can provide unit conversion between points, ppm and Hz values.
+	Note all scales are returned in descending order
+	"""
 	def __init__(self, points, carrier, spectralWidth, observedFrequency,
 		dimension, label):
+		"""
+		Returns Axis object to store ppm axis info.
+
+		Parameters
+		----------
+		points : int
+			number of points along the axis
+		carrier : float
+			centre frequency of the axis in Hz
+		spectralWidth : float
+			spectral width of the axis in Hz
+		observedFrequency : float
+			acquired NMR spectrometer frequency in MHz
+		dimension : int
+			dimension of the current axis
+		label : str
+			nucleus identifier e.g. 1H, 15N, 13C
+
+		Returns
+		-------
+		Axis : object
+			stores axis information and provides unit conversion between
+			points, ppm and Hz scales
+		"""
 		self.p   = points
 		self.car = carrier
 		self.sw  = spectralWidth
@@ -123,26 +152,88 @@ class Axis(object):
 
 	@property
 	def hz_scale(self):
+		"""
+		Returns
+		-------
+		array : numpy.ndarray of floats
+			the axis values in Hz in descending order
+		"""
 		return np.linspace(self.car+self.sw/2, self.car-self.sw/2, self.p)
 
 	@property
 	def ppm_scale(self):
+		"""
+		Returns
+		-------
+		array : numpy.ndarray of floats
+			the axis values in ppm in descending order
+		"""
 		return self.hz_scale / self.obs
 
 	@property
 	def ppm_limits(self):
+		"""
+		Returns
+		-------
+		tuple : (float, float)
+			the high and low ppm limits respectively
+		"""
 		scale = self.ppm_scale
 		return scale.max(), scale.min()
 
 	def f(self, ppm):
+		"""
+		Unit conversion from ppm -> points location on the axis.
+		This returns the decimal location along the scale
+
+		Parameters
+		----------
+		ppm : float
+			
+		Returns
+		-------
+		point : float
+			the decimal point location along the axis
+		"""
 		hzpp = self.sw / float(self.p-1)
 		loc = (-ppm * self.obs + self.car + self.sw/2) / hzpp
 		return loc
 
 	def i(self, ppm):
+		"""
+		Unit conversion from ppm -> points location on the axis.
+		This returns the closest integer location along the scale
+
+		Parameters
+		----------
+		ppm : float
+			
+		Returns
+		-------
+		point : int
+			the integer point location closest the the provided ppm value
+		"""
 		return np.argmin(np.abs(self.ppm_scale - ppm))
 
 	def __getitem__(self, slic):
+		"""
+		This magic method offers immediate translation between ppm and point
+		ranges. 
+
+		Parameters
+		----------
+		slic : slice or float
+			The ppm range to be translated. If [8.5:4.7] was provided, a new
+			slice containing the point ranges would be returned e.g. [55:560].
+			If a float is provided, the integer point location closest to
+			that point is returned.
+			
+		Returns
+		-------
+		point range : slice or int
+			the integer range or point closes to the given ppm range or point
+			respectively
+		"""
 		if isinstance(slic, slice):
 			if slic.start:
 				start = slic.start
@@ -153,11 +244,26 @@ class Axis(object):
 			else:
 				stop = self.ppm_limits[1]
 			return slice(self.i(start), self.i(stop)+1)
-
 		else:
 			return self.i(slic)
 
 	def new(self, slic):
+		"""
+		Return a new instance of the current axis constructed from a subset
+		of the axis values.
+
+		Parameters
+		----------
+		slic : slice or float
+			The ppm range to be taken for the new axis. If a float is provided,
+			something else happens
+			
+		Returns
+		-------
+		Axis : object
+			the integer range or point closes to the given ppm range or point
+			respectively
+		"""
 		if isinstance(slic, slice):
 			scale = self.hz_scale[self[slic]]
 			p = len(scale)
@@ -172,7 +278,16 @@ class Axis(object):
 			return low, high, weight
 
 
+
+a = Axis(50, 0.0, 800, 800, 1, '1H')
+
+
+print(a.new(0.2))
+
 class Spectrum(object):
+	"""
+	Stores spectrum data matrix and axes info.
+	"""
 	@staticmethod
 	def reorder_submatrix(data, shape, submatrix_shape):
 		"""
@@ -387,6 +502,7 @@ axis_dict = {
 	'x':2
 }
 
+
 if args:
 	width = args.width
 	peaks = load_peaks(args.peaks, reverse=args.opposite)
@@ -438,6 +554,9 @@ if args:
 			spec = Spectrum.load_pipe(dataset)
 
 		spec.reorder_axes(axisOrder)
+
+		if args.contours:
+			spec.cont = spec.make_contours(*args.contours)
 
 		if args.range is not None:
 			h1p, l1p = args.range
