@@ -37,7 +37,8 @@ if __name__=='__main__' and len(sys.argv)>1:
 		help="strip width in ppm, optional: default=0.15",
 		type=float, default=0.15)
 	parser.add_argument('-c','--contours',
-		help="3 numbers specifying the contour levels: 'low high number'",
+		help="3 numbers specifying the contour levels: 'low high number'\
+		note all values must be positive, negative contours are plotted the same",
 		type=float, nargs=3)
 	parser.add_argument('-r','--range',
 		help="Range IN PPM to be plotted in f1 dimension e.g. '0.0 6.0'",
@@ -279,10 +280,6 @@ class Axis(object):
 
 
 
-a = Axis(50, 0.0, 800, 800, 1, '1H')
-
-
-print(a.new(0.2))
 
 class Spectrum(object):
 	"""
@@ -438,7 +435,9 @@ class Spectrum(object):
 
 	@staticmethod	
 	def make_contours(lowest, highest, number):
-		return lowest+(highest-lowest)*(np.arange(0,number)/float(number-1))**(2.**0.5)
+		pos = lowest+(highest-lowest)*(np.arange(0,number)/float(number-1))**(2.**0.5)
+		neg = -pos[::-1]
+		return np.concatenate([neg, pos])
 
 
 	def __init__(self, data, axes, contours=None):
@@ -466,11 +465,19 @@ class Spectrum(object):
 
 	@property
 	def poscont(self):
-		return self.cont[np.where(self.cont>0)]
+		tmp = self.cont[np.where(self.cont>0)]
+		if len(tmp)>0:
+			return tmp
+		else:
+			return None
 
 	@property
 	def negcont(self):
-		return self.cont[np.where(self.cont<0)]
+		tmp = self.cont[np.where(self.cont<0)]
+		if len(tmp)>0:
+			return tmp
+		else:
+			return None
 
 	def projection(self, axis):
 		data = np.max(self.data, axis=axis)
@@ -480,6 +487,7 @@ class Spectrum(object):
 	def reorder_axes(self, newAxisOrder):
 		self.axes = [self.axes[i] for i in newAxisOrder]
 		self.data = np.moveaxis(self.data, [0,1,2], newAxisOrder)
+
 
 
 def print_progress(counter, total):
@@ -573,10 +581,12 @@ if args:
 
 			with warnings.catch_warnings():
 				warnings.simplefilter("ignore")
-				ax.contour(strip.data, strip.poscont, extent=strip.extent, 
-					colors=col[0], linewidths=0.05)
-				ax.contour(strip.data, strip.negcont, extent=strip.extent, 
-					colors=col[1], linewidths=0.05)
+				if spec.poscont:
+					ax.contour(strip.data, strip.poscont, extent=strip.extent, 
+						colors=col[0], linewidths=0.05)
+				if spec.negcont:
+					ax.contour(strip.data, strip.negcont, extent=strip.extent, 
+						colors=col[1], linewidths=0.05)
 
 	print("Adjusting axes ...")
 	total = len(plotAxes)
@@ -628,10 +638,12 @@ if args:
 	fig = plt.figure(figsize=(16.5,11.7))
 	ax = fig.add_subplot(111)
 
-	ax.contour(hsqc.data, hsqc.poscont, colors='b', 
-		extent=hsqc.extent, linewidths=0.05)
-	ax.contour(hsqc.data, hsqc.negcont, colors='g', 
-		extent=hsqc.extent, linewidths=0.05)
+	if spec.poscont:
+		ax.contour(hsqc.data, hsqc.poscont, colors='b', 
+			extent=hsqc.extent, linewidths=0.05)
+	if spec.negcont:
+		ax.contour(hsqc.data, hsqc.negcont, colors='g', 
+			extent=hsqc.extent, linewidths=0.05)
 	for lbl, peak, lblcol in peaks:
 		ax.plot(*peak, color='r', marker='x')
 		ax.annotate(lbl, xy=peak, color=lblcol, fontsize=5)
