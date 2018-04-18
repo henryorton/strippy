@@ -427,8 +427,10 @@ class Spectrum(object):
 			new_axis = Axis(p, car, sw, obs, dim, lbl)
 			axes.append(new_axis)
 		axes = sorted(axes, key=lambda x: x.dim)
-		std = np.std(data)
-		cont = cls.make_contours(8*std, 50*std, 10)
+		data /= np.std(data)
+		# std = np.std(data)
+		# cont = cls.make_contours(8*std, 50*std, 10)
+		cont = cls.make_contours(8, 50, 10)
 		cont = np.array(list(-cont[::-1])+list(cont))
 
 		return cls(data, axes, cont)
