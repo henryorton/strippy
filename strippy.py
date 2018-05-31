@@ -587,7 +587,7 @@ if args:
 					ax.contour(strip.data, strip.poscont, extent=strip.extent, 
 						colors=col[0], linewidths=0.05)
 				if spec.negcont is not None:
-					ax.contour(strip.data, strip.negcont, extent=strip.extent, 
+					ax.contour(-strip.data, -strip.negcont[::-1], extent=strip.extent, 
 						colors=col[1], linewidths=0.05)
 
 	print("Adjusting axes ...")
@@ -658,5 +658,13 @@ if args:
 
 
 
-
+# def timer(func):
+# 	import time
+# 	def wrapper(*args, **kwargs):
+# 		start = time.time()
+# 		output = func(*args, **kwargs)
+# 		finish = time.time()
+# 		print("Calculation time: {:.2g} sec".format(finish-start))
+# 		return output
+# 	return wrapper
 
