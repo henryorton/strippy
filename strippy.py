@@ -91,11 +91,13 @@ def load_peaks(fileName, reverse=False):
 				pos = np.array(splt[-2:], dtype=float)
 				if reverse:
 					pos = pos[::-1]
-				if len(splt)==3:
+				if len(splt)==3 and len(pos)==2:
 					peaks.append([splt[0], pos])
-				else:
+				elif len(pos)==2:
 					peaks.append([i, pos])
 					i += 1
+				else:
+					raise ValueError
 			except ValueError:
 				print("Line ignored in peaks file: {}".format(repr(line)))
 		cm = plt.get_cmap('brg', len(peaks))
