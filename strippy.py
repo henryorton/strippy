@@ -632,12 +632,13 @@ class Spectrum(object):
 
 		axes = []
 		for i in range(1,4):
-			stsr = hdr['FDF{}X1'.format(i)]
-			if stsr != 0:
-				stsr -= 1
-			stsi = hdr['FDF{}XN'.format(i)]
-			p = hdr['FDF{}FTSIZE'.format(i)] - stsr - stsi 
+			# stsr = hdr['FDF{}X1'.format(i)]
+			# stsi = hdr['FDF{}XN'.format(i)]
 			dim = hdr['FDDIMORDER{}'.format(i)] - 1
+			if dim==0:
+				p = hdr['FDSIZE']
+			else:
+				p = hdr['FDF{}FTSIZE'.format(i)]
 			sw  = hdr['FDF{}SW'.format(i)]
 			car = hdr['FDF{}ORIG'.format(i)] + sw/2.0
 			obs = hdr['FDF{}OBS'.format(i)]
@@ -649,7 +650,7 @@ class Spectrum(object):
 		data = data.reshape(*[axis.p for axis in axes])
 
 		std = np.std(data)
-		clevels = cls.make_contours(std*3, np.max(data), 10)
+		clevels = cls.make_contours(std*5, std*20, 10)
 		return cls(data, axes, clevels)
 	
 
