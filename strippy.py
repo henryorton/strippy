@@ -649,8 +649,8 @@ class Spectrum(object):
 		axes = sorted(axes, key=lambda x: -x.dim)
 		data = data.reshape(*[axis.p for axis in axes])
 
-		std = np.std(data)
-		clevels = cls.make_contours(std*5, std*20, 10)
+		data /= np.std(data)
+		clevels = cls.make_contours(5, 20, 10)
 		return cls(data, axes, clevels)
 	
 
