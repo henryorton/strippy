@@ -59,6 +59,9 @@ if __name__=='__main__' and len(sys.argv)>1:
 	parser.add_argument('-j','--pages',
 		help="number of pages in final pdf",
 		type=int)
+	parser.add_argument('-x','--ccpnpeaks',
+		help="ccpnmr type peak list",
+		default=False, action="store_true")
 	args = parser.parse_args()
 else:
 	args = None
@@ -297,6 +300,22 @@ def load_peaks(fileName, reverse=False):
 					raise ValueError
 			except ValueError:
 				print("Line ignored in peaks file: {}".format(repr(line)))
+		cm = plt.get_cmap('brg', len(peaks))
+		for i, peak in enumerate(peaks):
+			peak += [cm(i)]
+	return peaks
+
+
+def load_ccpnpeaks(fileName):
+	peaks = []
+	with open(fileName) as o:
+		hdr = next(o)
+		i=0
+		for line in o:
+			splt = line.split()
+			pos = np.array(splt[2:4], dtype=float)
+			peaks.append([splt[4]])
+
 		cm = plt.get_cmap('brg', len(peaks))
 		for i, peak in enumerate(peaks):
 			peak += [cm(i)]
@@ -740,7 +759,10 @@ axis_dict = {
 
 if args:
 	width = args.width
-	peaks = load_peaks(args.peaks, reverse=args.opposite)
+	if args.ccpnpeaks:
+		peaks = load_ccpnpeaks(args.peaks)
+	else:
+		peaks = load_peaks(args.peaks, reverse=args.opposite)
 	
 	colours = [('b','g'),('r','m'),('k','o')]
 	projAxis = axis_dict[args.projectionaxis]
