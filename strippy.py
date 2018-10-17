@@ -314,7 +314,7 @@ def load_ccpnpeaks(fileName):
 		for line in o:
 			splt = line.split()
 			pos = np.array(splt[2:4], dtype=float)
-			peaks.append([splt[4]])
+			peaks.append([splt[4], pos])
 
 		cm = plt.get_cmap('brg', len(peaks))
 		for i, peak in enumerate(peaks):
