@@ -853,6 +853,7 @@ if args:
 			h1p, l1p = args.range
 		else:
 			h1p, l1p = ax.get_ylim()
+		ax.set_ylim(h1p, l1p)
 		ax.set_yticks(np.linspace(int(l1p),int(h1p)+1,40))
 		ax.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
 		ax.yaxis.grid(linestyle='dotted')
