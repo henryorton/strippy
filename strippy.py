@@ -538,7 +538,7 @@ class Spectrum(object):
 		for sub_num, sub_idx in enumerate(np.ndindex(tuple(sub_per_dim))):
 			sub_slices = [slice(i * j, (i + 1) * j) for i, j in
 						  zip(sub_idx, submatrix_shape)]
-			rdata[sub_slices] = data[sub_num]
+			rdata[tuple(sub_slices)] = data[sub_num]
 		return rdata
 
 	@staticmethod
@@ -577,7 +577,7 @@ class Spectrum(object):
 	def read_clevels(fileName):
 		with open(fileName) as o:
 			s = o.read().replace('\n',' ')
-		lvls = re.search('\#\#\$LEVELS=\s?\(.*\)(.*?)\#\#\$', s).group(1)
+		lvls = re.search(r'\#\#\$LEVELS=\s?\(.*\)(.*?)\#\#\$', s).group(1)
 		return np.trim_zeros(np.array(lvls.split(), dtype=float))
 
 
@@ -588,13 +588,16 @@ class Spectrum(object):
 		clevels = None
 		for fileName in os.listdir(spectrumDir):
 			fullDir = os.path.join(spectrumDir, fileName)
-			if re.search("[0-9][r]+[^i]", fileName):
+
+			if fileName in ('1r', '2rr', '3rrr', '4rrrr'):
 				specFile = fullDir
 
 			elif re.search("proc[0-9]?s", fileName):
-				dim = filter(str.isdigit, fileName)
-				if not dim:
+				num = re.search("proc([0-9])?s", fileName).group(1)
+				if not num:
 					dim = 1
+				else:
+					dim = int(num)
 				procs[int(dim)] = cls.read_procs(fullDir)
 
 			elif re.search("clevels", fileName):
@@ -604,7 +607,8 @@ class Spectrum(object):
 		axes = []
 		actualShape = []
 		subMatrixShape = []
-		for dim, proc in procs.items():
+		for dim in sorted(procs):
+			proc = procs[dim]
 			p   = proc['SI']
 			car = proc['OFFSET']*proc['SF'] - 0.5*proc['SW_p']
 			sw  = proc['SW_p']
@@ -694,8 +698,7 @@ class Spectrum(object):
 			new_axis = axis.new(slic)
 			if isinstance(new_axis, Axis):
 				new_axes.append(new_axis)
-
-		return self.__class__(self.data[new_slice], new_axes, self.cont)
+		return self.__class__(self.data[tuple(new_slice)], new_axes, self.cont)
 		
 	@property
 	def extent(self):
@@ -757,13 +760,51 @@ axis_dict = {
 }
 
 
+
+
+
+# spec = Spectrum.load_bruker("../18/pdata/1")
+# print(spec.data.shape)
+# print(spec.axes)
+# print(spec.axes[0].ppm_limits)
+# print(spec.axes[1].ppm_limits)
+# print(spec.axes[2].ppm_limits)
+# s = spec[9:5,130:110,8:7]
+# print(s.data.shape)
+
+# for axis in spec.axes:
+	# print(axis, axis.ppm_limits)
+# print(spec.data.shape)
+
+# print(spec.data[0:512,0:128,0:1024].shape)
+
+# print(spec.axes[2][9:5])
+
+
+spec = Spectrum
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 if args:
 	width = args.width
 	if args.ccpnpeaks:
 		peaks = load_ccpnpeaks(args.peaks)
 	else:
 		peaks = load_peaks(args.peaks, reverse=args.opposite)
-	
+
 	colours = [('b','g'),('r','m'),('k','o')]
 	projAxis = axis_dict[args.projectionaxis]
 	axisOrder = [axis_dict[i] for i in args.axisorder]
@@ -796,7 +837,7 @@ if args:
 			subpltcnt += 1
 			setattr(ax, 'customPeakPosition', peak)
 			c3p, c2p = peak
-			ax.text(.5,.97,"{:3.1f}".format(c2p),horizontalalignment='center',
+			ax.text(.5,.94,"{:3.1f}".format(c2p),horizontalalignment='center',
 				transform=ax.transAxes, rotation=90, backgroundcolor='1')
 			ax.set_title(str(lbl), color=lblcol, rotation=90, 
 				verticalalignment='bottom')
@@ -828,14 +869,12 @@ if args:
 			h3p, l3p = c3p+width*0.5, c3p-width*0.5
 			strip = spec[h1p:l1p,c2p,h3p:l3p]
 
-			with warnings.catch_warnings():
-				warnings.simplefilter("ignore")
-				if spec.poscont is not None:
-					ax.contour(strip.data, strip.poscont, extent=strip.extent, 
-						colors=col[0], linewidths=0.05)
-				if spec.negcont is not None:
-					ax.contour(-strip.data, -strip.negcont[::-1], extent=strip.extent, 
-						colors=col[1], linewidths=0.05)
+			if spec.poscont is not None:
+				ax.contour(strip.data, strip.poscont, extent=strip.extent, 
+					colors=col[0], linewidths=0.05)
+			if spec.negcont is not None:
+				ax.contour(-strip.data, -strip.negcont[::-1], extent=strip.extent, 
+					colors=col[1], linewidths=0.05)
 
 	print("Adjusting axes ...")
 	total = len(plotAxes)
