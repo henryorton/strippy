@@ -761,43 +761,6 @@ axis_dict = {
 
 
 
-
-
-# spec = Spectrum.load_bruker("../18/pdata/1")
-# print(spec.data.shape)
-# print(spec.axes)
-# print(spec.axes[0].ppm_limits)
-# print(spec.axes[1].ppm_limits)
-# print(spec.axes[2].ppm_limits)
-# s = spec[9:5,130:110,8:7]
-# print(s.data.shape)
-
-# for axis in spec.axes:
-	# print(axis, axis.ppm_limits)
-# print(spec.data.shape)
-
-# print(spec.data[0:512,0:128,0:1024].shape)
-
-# print(spec.axes[2][9:5])
-
-
-spec = Spectrum
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 if args:
 	width = args.width
 	if args.ccpnpeaks:
