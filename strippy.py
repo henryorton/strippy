@@ -3,6 +3,7 @@ import os
 import sys
 import re
 import struct
+from pprint import pprint
 
 import matplotlib as mpl
 mpl.use('Agg')
@@ -30,7 +31,7 @@ Plotting in the f1 dimension is from 0.5 to 6.0 ppm.
 if __name__=='__main__' and len(sys.argv)>1:
 	parser = argparse.ArgumentParser(description=long_description)
 	parser.add_argument('-d','--dataset',
-		help="directory of nmrPipe 3D data",type=str,nargs='+')
+		help="directory(s) of Bruker 3D dataset or nmrPipe 3D file(s)",type=str,nargs='+')
 	parser.add_argument('-p','--peaks',
 		help="2 dimensional peak list with 'f3 f2' in ppm separated by spaces",
 		type=str)
@@ -648,34 +649,36 @@ class Spectrum(object):
 				formBytes = "{}{}".format(end-start, dtype)
 			value = struct.unpack(formBytes, rawBytes)[0]
 			if dtype=='s':
-				value = value.strip('\x00')
+				value = value.strip(b"\x00").decode()
 			if dtype=='i':
 				value = int(value)
 			hdr[label] = value
 
 		axes = []
+		dims = []
 		for i in range(1,4):
-			# stsr = hdr['FDF{}X1'.format(i)]
-			# stsi = hdr['FDF{}XN'.format(i)]
-			dim = hdr['FDDIMORDER{}'.format(i)] - 1
-			if dim==0:
-				p = hdr['FDSIZE']
-			else:
-				p = hdr['FDF{}FTSIZE'.format(i)]
-			sw  = hdr['FDF{}SW'.format(i)]
-			car = hdr['FDF{}ORIG'.format(i)] + sw/2.0
-			obs = hdr['FDF{}OBS'.format(i)]
-			lbl = hdr['FDF{}LABEL'.format(i)]
-			new_axis = Axis(p, car, sw, obs, dim, lbl)
+			dim = hdr['FDDIMORDER{}'.format(i)]
+			dims.append(dim-1)
+			x1 = hdr['FDF{}X1'.format(dim)]
+			xn = hdr['FDF{}XN'.format(dim)]
+			if xn == 0:
+				xn = hdr['FDF{}FTSIZE'.format(dim)] - 1
+			p = xn - x1	+ 1
+			sw  = hdr['FDF{}SW'.format(dim)]
+			car = hdr['FDF{}ORIG'.format(dim)] + sw/2.0
+			obs = hdr['FDF{}OBS'.format(dim)]
+			lbl = hdr['FDF{}LABEL'.format(dim)]
+			new_axis = Axis(p, car, sw, obs, i, lbl)
 			axes.append(new_axis)
 
 		axes = sorted(axes, key=lambda x: -x.dim)
 		data = data.reshape(*[axis.p for axis in axes])
-
 		data /= np.std(data)
 		clevels = cls.make_contours(5, 20, 10)
-		return cls(data, axes, clevels)
-	
+		spec = cls(data, axes, clevels)
+		# spec.reorder_axes([1,0,2])
+		return spec
+
 
 
 	@staticmethod	
@@ -730,6 +733,8 @@ class Spectrum(object):
 
 	def reorder_axes(self, newAxisOrder):
 		self.axes = [self.axes[i] for i in newAxisOrder]
+		for i, axis in enumerate(self.axes):
+			axis.dim = 3-i
 		axis_nums = [i for i, axis in enumerate(self.axes)]
 		self.data = np.moveaxis(self.data, axis_nums, newAxisOrder)
 
@@ -771,6 +776,7 @@ if args:
 	colours = [('b','g'),('r','m'),('k','o')]
 	projAxis = axis_dict[args.projectionaxis]
 	axisOrder = [axis_dict[i] for i in args.axisorder]
+	print(axisOrder)
 
 	if args.pages:
 		numfigs = args.pages
@@ -828,8 +834,8 @@ if args:
 			progress += 1
 			print_progress(progress, total)
 
-			c3p, c2p = ax.customPeakPosition
-			h3p, l3p = c3p+width*0.5, c3p-width*0.5
+			c3p, c2p = ax.customPeakPosition # F3 F2 peak position
+			h3p, l3p = c3p+width*0.5, c3p-width*0.5 # F3 high and low
 			strip = spec[h1p:l1p,c2p,h3p:l3p]
 
 			if spec.poscont is not None:
