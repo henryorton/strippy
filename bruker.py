@@ -1,11 +1,13 @@
+import logging
 import os
-from typing import Any
-from spectrum import Spectrum
-from axis import Axis
 import re
+from typing import Any
+
 import numpy as np
 import numpy.typing as npt
-import logging
+
+from axis import Axis
+from spectrum import Spectrum
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging._nameToLevel["INFO"])

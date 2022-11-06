@@ -1,9 +1,11 @@
 """A container for spectrum data with axes"""
+import logging
 from dataclasses import dataclass
-from axis import Axis
+
 import numpy as np
 import numpy.typing as npt
-import logging
+
+from axis import Axis
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +29,7 @@ class Spectrum:
         return f"<{len(self.axes)}D spectrum with axes [{axes}]>"
 
     def __post_init__(self):
-        logging.info(f"Created new spectrum: {self}")
+        logging.debug(f"Created new spectrum: {self}")
 
     def make_contours(self, minimum: float, maximum: float, number: int):
         """
@@ -127,9 +129,16 @@ class Spectrum:
         if set(new_axis_order) not in allowed_axes:
             raise IndexError("Incompatible axis definitions")
 
+        logging.debug(
+            f"Started reordering spectrum axes from {self.axes} and data shape {self.data.shape}"
+        )
+
         self.axes = tuple([self.axes[i] for i in new_axis_order])
         original_axis_order = list(range(len(self.axes)))
         self.data = np.moveaxis(self.data, new_axis_order, original_axis_order)
+        logging.debug(
+            f"Finished reordering spectrum axes to {self.axes} and data shape {self.data.shape}"
+        )
 
 
 # axes = (

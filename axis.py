@@ -1,9 +1,10 @@
 """A class for managing a ppm scale"""
+import logging
 from dataclasses import dataclass
 from typing import Union
+
 import numpy as np
 import numpy.typing as npt
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ class Axis:
         return f"<Axis: {self.label}, {self.points} points in {self.ppm_limits} ppm>"
 
     def __post_init__(self):
-        logging.info(f"Created new axis: {self}")
+        logging.debug(f"Created new axis: {self}")
 
     @property
     def hz_scale(self) -> npt.NDArray[np.float_]:
@@ -47,6 +48,11 @@ class Axis:
             self.carrier - 0.5 * self.spectral_width,
             self.points,
         )
+
+    @property
+    def centre_ppm(self) -> float:
+        """The center frequency in ppm"""
+        return 0.5 * sum(self.ppm_limits)
 
     @property
     def ppm_scale(self) -> npt.NDArray[np.float_]:

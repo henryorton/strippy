@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Optional
 
+from matplotlib import colormaps
+
 
 @dataclass
 class Peak:
@@ -13,6 +15,13 @@ class Peak:
 class PeakList:
     peaks: list[Peak]
 
+    def __iter__(self):
+        for peak in self.peaks:
+            yield peak
+
+    def __len__(self):
+        return len(self.peaks)
+
     @classmethod
     def load_from_file(cls, file_name: str) -> "PeakList":
         """
@@ -20,6 +29,7 @@ class PeakList:
         peak position in ppm. If 3 columns are provided, the first column is
         assumed to be the peak identifier (such as a sequence/residue). If two
         columns are provided, the peak identifier is set to an integer.
+        Lines starting with # are ignored
 
         Parameters
         ----------
@@ -36,6 +46,8 @@ class PeakList:
         with open(file_name) as o:
             index = 0
             for line_number, line in enumerate(o):
+                if line.startswith("#"):
+                    continue
                 splt = line.split()
                 try:
                     # There is no label specified
@@ -51,8 +63,8 @@ class PeakList:
                     peak = Peak(
                         label=label,
                         position=(
-                            float(splt[-1]),
                             float(splt[-2]),
+                            float(splt[-1]),
                         ),
                     )
                     peak_list.peaks.append(peak)
@@ -63,13 +75,15 @@ class PeakList:
                     )
                     print(f"This line was ignored when parsing: {repr(line)}")
 
+        peak_list.set_colour_map()
         return peak_list
 
-    def reverse_order(self):
+    def swap_order(self):
         for peak in self.peaks:
             peak.position = peak.position[::-1]
 
-        #     cm = plt.get_cmap("brg", len(peaks))
-        #     for i, peak in enumerate(peaks):
-        #         peak += [cm(i)]
-        # return peaks
+    def set_colour_map(self):
+
+        cm = colormaps["viridis"].resampled(len(self.peaks))
+        for i, peak in enumerate(self.peaks):
+            peak.label_color = cm(i)
