@@ -1,0 +1,1 @@
+Create 2D strip plot from 3D NMR data and a list of peaks.
