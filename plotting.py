@@ -74,21 +74,9 @@ def plot_strips(strips_set: list[list[Spectrum]], labels: Optional[list[str]] = 
                     linewidths=0.05,
                 )
 
-        strip = strips[0]
-
-        ax.tick_params(right="off")
-        f1l, f1r = strip.axes[0].ppm_limits
-        if f1l > f1r:
-            f1l_round = int(f1l * 2) / 2
-            f1r_round = int((f1r + 1) * 2) / 2
-            step = -0.5
-        else:
-            f1l_round = int((f1l + 1) * 2) / 2
-            f1r_round = int(f1r * 2) / 2
-            step = 0.5
-        ax.set_yticks(np.arange(f1l_round, f1r_round + step, step))
         ax.yaxis.set_major_formatter(FormatStrFormatter("%.1f"))
 
+        ax.tick_params(right="off")
         if i != 0:
             ax.yaxis.set_ticklabels([])
             ax.yaxis.set_ticks_position("none")
@@ -96,7 +84,7 @@ def plot_strips(strips_set: list[list[Spectrum]], labels: Optional[list[str]] = 
         ax.set_title(labels[i], rotation=90, verticalalignment="bottom")
 
         ax.xaxis.set_major_formatter(FormatStrFormatter("%.2f"))
-        ax.set_xticks([strip.axes[1].centre_ppm])
+        ax.set_xticks([strips[0].axes[1].centre_ppm])
         ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
         ax.invert_xaxis()
         ax.invert_yaxis()

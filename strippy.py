@@ -126,6 +126,15 @@ if args:
         axisorder = (0, 1, 2) * len(args.dataset)
     else:
         axisorder = args.axisorder
+    if len(axisorder) != 3 * len(args.dataset):
+        raise IndexError(
+            f"Incorrect number of axis order arguments. Should be {3 * len(args.dataset)} but got {len(axisorder)}."
+        )
+    if args.range is not None:
+        if len(args.range) != 2 * len(args.dataset):
+            raise IndexError(
+                f"Incorrect number of axis range arguments. Should be {2 * len(args.dataset)} but got {len(args.range)}."
+            )
 
     spectra: list[Spectrum] = []
     for i, dataset_path in enumerate(args.dataset):
@@ -138,16 +147,16 @@ if args:
     strips_set: list[list[Spectrum]] = []
     labels: list[str] = []
     for peak in peaklist:
-        if args.range:
-            f1 = slice(*args.range)
-        else:
-            f1 = slice(None)
         f2 = peak.position[1]
         f3l = peak.position[0] + 0.5 * args.width
         f3r = peak.position[0] - 0.5 * args.width
 
         strips: list[Spectrum] = []
-        for spectrum in spectra:
+        for i, spectrum in enumerate(spectra):
+            if args.range:
+                f1 = slice(*args.range[i * 2 : i * 2 + 2])
+            else:
+                f1 = slice(None)
             strip = spectrum[f1, f2, f3l:f3r]
             strips.append(strip)
             logger.info(f"Created new strip for peak {peak} given by {strip}")
@@ -166,8 +175,22 @@ if args:
         fig = plot_strips(strips_subset, labels_subset)
         figs.append(fig)
 
+    # Set axis ranges
+    for fig in figs:
+        for ax in fig.axes:
+            f1l, f1r = ax.get_ylim()
+            if f1l > f1r:
+                f1l_round = int(f1l * 2) / 2
+                f1r_round = int((f1r + 1) * 2) / 2
+                step = -0.5
+            else:
+                f1l_round = int((f1l + 1) * 2) / 2
+                f1r_round = int(f1r * 2) / 2
+                step = 0.5
+            ax.set_yticks(np.arange(f1l_round, f1r_round + step, step))
+
     # Save plot to file
-    strips_file_name = "strips_testing.pdf"
+    strips_file_name = "strips.pdf"
     with PdfPages(strips_file_name) as pdf:
         for fig in figs:
             pdf.savefig(fig, bbox_inches="tight")
