@@ -1,6 +1,7 @@
 """A container for spectrum data with axes"""
 import logging
 from dataclasses import dataclass
+from typing import Union
 
 import numpy as np
 import numpy.typing as npt
@@ -47,7 +48,9 @@ class Spectrum:
         neg = -pos[::-1]
         self.contours = np.concatenate([neg, pos])
 
-    def __getitem__(self, key: float | slice | tuple[float | slice, ...]) -> "Spectrum":
+    def __getitem__(
+        self, key: Union[float, slice, tuple[Union[float, slice], ...]]
+    ) -> "Spectrum":
         """
         Slice the data matrix to return a new spectrum with a subset of the data.
         For example, given a 3D spectrum:

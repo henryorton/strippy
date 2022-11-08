@@ -107,7 +107,7 @@ class Axis:
                 return True
         return False
 
-    def __getitem__(self, key: slice | float) -> slice | int | float:
+    def __getitem__(self, key: Union[slice, float]) -> Union[slice, int, float]:
         """
         Translate between ppm slice and integer slice
         A slice represents are range of values between <start> and <stop>
@@ -160,7 +160,7 @@ class Axis:
         else:
             raise TypeError("Must use a slice or float type in Axis getitem")
 
-    def new(self, key: slice | float) -> Union["Axis", int, float]:
+    def new(self, key: Union[slice, float]) -> Union["Axis", int, float]:
         """
         Return a new instance of the current axis constructed from a subset
         of the axis values.
