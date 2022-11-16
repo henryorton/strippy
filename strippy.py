@@ -31,14 +31,15 @@ HELP_DIRECTORY = "Directory of Bruker 3D processed data. For example ./1/proc/1/
 
 HELP_PEAKS = "2 dimensional peak list with 'f3 f2' in ppm separated by spaces or tabs. Each row is a single peak like '8.45 120.2'. However, a peak label can be inserted in the first column like '34GLU 8.45 120.2'"
 
-HELP_AXISORDER = "the order of axes for the dataset, default: 0 1 2 for axes f1, f2, f3. You may want to modify this parameter to select which dimension is plotted in x, y and z for the strips. For example, the spectrum with f3=1H, f2=14N and f1=13C will plot by default with x=1H, y=14N, z=13C. However, but choosing axis order '1 0 2' you can have x=1H, y=13C and z=14N. Note that 3 integers are required for each additional dataset provided."
+HELP_AXISORDER = "The order of axes for the dataset, default: 0 1 2 for axes f1, f2, f3. You may want to modify this parameter to select which dimension is plotted in x, y and z for the strips. For example, the spectrum with f3=1H, f2=14N and f1=13C will plot by default with x=1H, y=14N, z=13C. However, but choosing axis order '1 0 2' you can have x=1H, y=13C and z=14N. Note that 3 integers are required for each additional dataset provided."
 
-HELP_CONTOURS = "3 numbers specifying the contour levels: 'max min number_levels'. Note all values must be positive, negative contours are automatically generated using the same values."
+HELP_CONTOURS = "3 numbers specifying the contour levels: 'max min number_levels'. Note all values must be positive, negative contours are automatically generated using the same values. WARNING CURRENTLY IGNORED"
 
 if __name__ == "__main__" and len(sys.argv) > 1:
     parser = argparse.ArgumentParser(
         prog="Strippy",
         description=LONG_DESCRIPTION,
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
         "-d",
@@ -46,13 +47,9 @@ if __name__ == "__main__" and len(sys.argv) > 1:
         help=HELP_DIRECTORY,
         type=str,
         nargs="+",
+        required=True,
     )
-    parser.add_argument(
-        "-p",
-        "--peaks",
-        help=HELP_PEAKS,
-        type=str,
-    )
+    parser.add_argument("-p", "--peaks", help=HELP_PEAKS, type=str, required=True)
     parser.add_argument(
         "-a",
         "--axisorder",
@@ -63,21 +60,21 @@ if __name__ == "__main__" and len(sys.argv) > 1:
     parser.add_argument(
         "-w",
         "--width",
-        help="Strip width in ppm, default=0.15",
+        help="Single strip width in ppm",
         type=float,
         default=0.15,
     )
     parser.add_argument(
         "-r",
         "--range",
-        help="Range IN PPM to be plotted in f1 dimension e.g. '6.0, 0.0'",
+        help="Minimum and maximum strip ranges in ppm to be plotted in f1 dimension. Two values must be given for each dataset specified",
         type=float,
         nargs="+",
     )
     parser.add_argument(
         "-i",
         "--dimensions",
-        help="Strip dimensions in mm. Two numbers for width and height.",
+        help="Strip dimensions in mm. Two numbers for width and height must be given.",
         type=float,
         nargs=2,
         default=(10.0, 300.0),
@@ -88,13 +85,6 @@ if __name__ == "__main__" and len(sys.argv) > 1:
         help=HELP_CONTOURS,
         type=float,
         nargs="+",
-    )
-    parser.add_argument(
-        "-o",
-        "--opposite",
-        help="reverse f3,f2 peak order to f2,f3",
-        default=False,
-        action="store_true",
     )
     parser.add_argument(
         "-j",
@@ -121,8 +111,8 @@ if args:
     logger = logging.getLogger(__name__)
     if args.logging not in logging._nameToLevel:
         raise KeyError("Logging level name not supported")
-    logger.setLevel(logging._nameToLevel[args.logging])
-    logging.basicConfig(filename="strippy.log", level=args.logging)
+    logger.setLevel(logging._nameToLevel[args.logging.upper()])
+    logging.basicConfig(filename="strippy.log", level=args.logging.upper())
 
     # Load peaks
     print("Loading peaks.")
