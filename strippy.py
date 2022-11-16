@@ -5,18 +5,19 @@ import sys
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 
+
 from bruker import load_bruker
 from peaks import PeakList
-from plotting import even_divide, plot_strips
+from plotting import even_divide, plot_strips, plot_spectrum_2d
 from spectrum import Spectrum
 
-logger = logging.getLogger()
-logger.setLevel(logging._nameToLevel["INFO"])
+mpl_logger = logging.getLogger("matplotlib")
+mpl_logger.setLevel(logging._nameToLevel["INFO"])
 
-long_description = """
+LONG_DESCRIPTION = """
 Make a strip plot from a 3D Bruker data set and 2D peak list. 
-Typical usage: 
-python strippy.py -d 14/pdata/3 -p peaks.list -w 0.15 -c 0.1 10 10 -r 0.5 6.0. 
+Typical usage:
+python strippy.py -d 14/pdata/1 -p peaks.list -w 0.15 -c 0.1 10 10 -r 0.5 6.0. 
 This would plot processed data 3 from dataset 14.
 The peak list has columns 'f3 f2' separated by spaces.
 The strips will have width 0.15 ppm.
@@ -26,36 +27,45 @@ standard deviation.
 Plotting in the f1 dimension is from 0.5 to 6.0 ppm.
 """
 
+HELP_DIRECTORY = "Directory of Bruker 3D processed data. For example ./1/proc/1/. The folder must contain a 3rr spectrum file with associated status process parameters 'procs'. It is possible to specify multiple directories, in which case they will be plotted over one another."
+
+HELP_PEAKS = "2 dimensional peak list with 'f3 f2' in ppm separated by spaces or tabs. Each row is a single peak like '8.45 120.2'. However, a peak label can be inserted in the first column like '34GLU 8.45 120.2'"
+
+HELP_AXISORDER = "the order of axes for the dataset, default: 0 1 2 for axes f1, f2, f3. You may want to modify this parameter to select which dimension is plotted in x, y and z for the strips. For example, the spectrum with f3=1H, f2=14N and f1=13C will plot by default with x=1H, y=14N, z=13C. However, but choosing axis order '1 0 2' you can have x=1H, y=13C and z=14N. Note that 3 integers are required for each additional dataset provided."
+
+HELP_CONTOURS = "3 numbers specifying the contour levels: 'max min number_levels'. Note all values must be positive, negative contours are automatically generated using the same values."
 
 if __name__ == "__main__" and len(sys.argv) > 1:
-    parser = argparse.ArgumentParser(description=long_description)
+    parser = argparse.ArgumentParser(
+        prog="Strippy",
+        description=LONG_DESCRIPTION,
+    )
     parser.add_argument(
         "-d",
         "--dataset",
-        help="directory(s) of Bruker 3D dataset or nmrPipe 3D file(s)",
+        help=HELP_DIRECTORY,
         type=str,
         nargs="+",
     )
     parser.add_argument(
         "-p",
         "--peaks",
-        help="2 dimensional peak list with 'f3 f2' in ppm separated by spaces",
+        help=HELP_PEAKS,
         type=str,
+    )
+    parser.add_argument(
+        "-a",
+        "--axisorder",
+        help=HELP_AXISORDER,
+        type=int,
+        nargs="+",
     )
     parser.add_argument(
         "-w",
         "--width",
-        help="strip width in ppm, optional: default=0.15",
+        help="Strip width in ppm, default=0.15",
         type=float,
         default=0.15,
-    )
-    parser.add_argument(
-        "-c",
-        "--contours",
-        help="3 numbers specifying the contour levels: 'low high number'\
-        note all values must be positive, negative contours are plotted the same",
-        type=float,
-        nargs="+",
     )
     parser.add_argument(
         "-r",
@@ -65,10 +75,19 @@ if __name__ == "__main__" and len(sys.argv) > 1:
         nargs="+",
     )
     parser.add_argument(
-        "-s",
-        "--hsqc",
-        help="directory of 2D HSQC data",
-        type=str,
+        "-i",
+        "--dimensions",
+        help="Strip dimensions in mm. Two numbers for width, height.",
+        type=float,
+        nargs=2,
+        default=(10.0, 300.0),
+    )
+    parser.add_argument(
+        "-c",
+        "--contours",
+        help=HELP_CONTOURS,
+        type=float,
+        nargs="+",
     )
     parser.add_argument(
         "-o",
@@ -78,32 +97,18 @@ if __name__ == "__main__" and len(sys.argv) > 1:
         action="store_true",
     )
     parser.add_argument(
-        "-a",
-        "--projectionaxis",
-        help="the axis about which slices will be taken: x or y or z",
-        default="z",
-        type=str,
-    )
-    parser.add_argument(
-        "-q",
-        "--axisorder",
-        help="the order of axes for the dataset, default: 0 1 2",
-        type=int,
-        nargs="+",
-    )
-    parser.add_argument(
         "-j",
         "--pages",
-        help="number of pages in final pdf",
+        help="The number of pages in final pdf.",
         type=int,
         default=1,
     )
     parser.add_argument(
-        "-x",
-        "--ccpnpeaks",
-        help="ccpnmr type peak list",
-        default=False,
-        action="store_true",
+        "-l",
+        "--logging",
+        help="Set the logging level to one of ERROR, WARNING, INFO or DEBUG for increasing levels of information.",
+        type=str,
+        default="DEBUG",
     )
     args = parser.parse_args()
 else:
@@ -111,27 +116,39 @@ else:
 
 
 if args:
-    assert isinstance(args.width, float)
+    # Setup the logger
+    print("Setting up log file.")
+    logger = logging.getLogger(__name__)
+    if args.logging not in logging._nameToLevel:
+        raise KeyError("Logging level name not supported")
+    logger.setLevel(logging._nameToLevel[args.logging])
+    logging.basicConfig(filename="strippy.log", level=args.logging)
 
     # Load peaks
+    print("Loading peaks.")
     if args.peaks is None:
         raise ValueError("A peak list must be specified")
     peaklist = PeakList.load_from_file(args.peaks)
-    logging.info(f"Loaded {len(peaklist)} peaks from file {args.peaks}")
+    logger.info(f"Loaded {len(peaklist)} peaks from file {args.peaks}")
 
     # Load spectra
+    print("Loading spectra.")
     if args.dataset is None:
+        logger.error("No dataset specified")
         raise ValueError("A dataset must be specified.")
     if args.axisorder is None:
         axisorder = (0, 1, 2) * len(args.dataset)
+        logger.info(f"No axis order was specified. Using default: {axisorder}")
     else:
         axisorder = args.axisorder
     if len(axisorder) != 3 * len(args.dataset):
+        logger.error(f"Number of axes in axis order was incorrect: {axisorder}")
         raise IndexError(
             f"Incorrect number of axis order arguments. Should be {3 * len(args.dataset)} but got {len(axisorder)}."
         )
     if args.range is not None:
         if len(args.range) != 2 * len(args.dataset):
+            logger.error
             raise IndexError(
                 f"Incorrect number of axis range arguments. Should be {2 * len(args.dataset)} but got {len(args.range)}."
             )
@@ -141,9 +158,10 @@ if args:
         spectrum = load_bruker(dataset_path)
         spectrum.reorder_axes(axisorder[i * 3 : i * 3 + 3])
         spectra.append(spectrum)
-        logging.info(f"Loaded spectrum from file {dataset_path}: {str(spectrum)}")
+        logger.info(f"Loaded spectrum from file {dataset_path}: {str(spectrum)}")
 
     # Slice spectra
+    print("Slicing spectra.")
     strips_set: list[list[Spectrum]] = []
     labels: list[str] = []
     for peak in peaklist:
@@ -159,7 +177,7 @@ if args:
                 f1 = slice(None)
             strip = spectrum[f1, f2, f3l:f3r]
             strips.append(strip)
-            logger.info(f"Created new strip for peak {peak} given by {strip}")
+            # logger.debug(f"Created new strip for peak {peak} given by {strip}")
 
         strips_set.append(strips)
 
@@ -168,6 +186,7 @@ if args:
         labels.append(label)
 
     # Plot strips
+    print("Plotting strips.")
     figs = []
     strips_divided = even_divide(strips_set, args.pages)
     labels_divided = even_divide(labels, args.pages)
@@ -176,6 +195,7 @@ if args:
         figs.append(fig)
 
     # Set axis ranges
+    print("Setting axis ranges.")
     for fig in figs:
         for ax in fig.axes:
             f1l, f1r = ax.get_ylim()
@@ -189,37 +209,22 @@ if args:
                 step = 0.5
             ax.set_yticks(np.arange(f1l_round, f1r_round + step, step))
 
+    # Adjust figure size
+    print("Adjusting axis dimensions.")
+    width = args.dimensions[0] / 25.4
+    height = args.dimensions[1] / 25.4
+    for fig in figs:
+        naxes = len(fig.axes) // len(spectra)
+        fig_width = (width * naxes) / (fig.subplotpars.right - fig.subplotpars.left)
+        fig_height = height / (fig.subplotpars.top - fig.subplotpars.bottom)
+        fig.set_size_inches(fig_width, fig_height)
+
     # Save plot to file
-    strips_file_name = "strips.pdf"
-    with PdfPages(strips_file_name) as pdf:
+    with PdfPages("strips.pdf") as pdf:
         for fig in figs:
             pdf.savefig(fig, bbox_inches="tight")
 
-
-#     if args.hsqc:
-#         print("Plotting HSQC ...")
-#         hsqc = Spectrum.load_bruker(args.hsqc)
-#     else:
-#         print("Plotting projection ...")
-#         hsqc = spec.projection(projAxis)
-
-#     fig = plt.figure(figsize=(16.5, 11.7))
-#     ax = fig.add_subplot(111)
-
-#     if spec.poscont is not None:
-#         ax.contour(
-#             hsqc.data, hsqc.poscont, colors="b", extent=hsqc.extent, linewidths=0.05
-#         )
-#     if spec.negcont is not None:
-#         ax.contour(
-#             hsqc.data, hsqc.negcont, colors="g", extent=hsqc.extent, linewidths=0.05
-#         )
-#     for lbl, peak, lblcol in peaks:
-#         ax.plot(*peak, color="r", marker="x")
-#         ax.annotate(lbl, xy=peak, color=lblcol, fontsize=5)
-
-#     ax.invert_xaxis()
-#     ax.invert_yaxis()
-#     hsqcFileName = "hsqc.pdf"
-#     fig.savefig(hsqcFileName, bbox_inches="tight")
-#     print("{} file written".format(hsqcFileName))
+    # Create projection about z axis
+    projection = spectra[0].projection(0)
+    fig = plot_spectrum_2d(projection, peaklist)
+    fig.savefig("projection.pdf", bbox_inches="tight")
