@@ -77,7 +77,7 @@ if __name__ == "__main__" and len(sys.argv) > 1:
     parser.add_argument(
         "-i",
         "--dimensions",
-        help="Strip dimensions in mm. Two numbers for width, height.",
+        help="Strip dimensions in mm. Two numbers for width and height.",
         type=float,
         nargs=2,
         default=(10.0, 300.0),
