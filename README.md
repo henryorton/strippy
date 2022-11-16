@@ -12,6 +12,6 @@ Strippy is a set of python scripts. Ensure you have python 3.9 or above installe
 
 Strippy requires the libraries `numpy` and `matplotlib` to be installed which you can install using pip.
 
-Download this repository using the green `clone` button above.
+Clone this repository using the green `code` button above, and pressing `download zip`.
 
-Execute via the command line `strippy/strippy.py --help` to get see how to use the program.
+Execute strippy by the command line `strippy/strippy.py --help` to get see how to use the program.
