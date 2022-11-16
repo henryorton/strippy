@@ -172,7 +172,7 @@ if args:
         strips_set.append(strips)
 
         # Create labels
-        label = f"{peak.label}: {f2:.2f}"
+        label = f"{peak.label}: {f2:#.4g}"
         labels.append(label)
 
     # Plot strips

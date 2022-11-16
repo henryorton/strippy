@@ -104,7 +104,7 @@ def plot_strips(
                     linewidths=0.05,
                 )
 
-        ax.yaxis.set_major_formatter(FormatStrFormatter("%.1f"))
+        ax.yaxis.set_major_formatter(FormatStrFormatter("%#.4g"))
 
         ax.tick_params(right="off")
         if i != 0:
@@ -113,7 +113,7 @@ def plot_strips(
 
         ax.set_title(labels[i], rotation=90, verticalalignment="bottom")
 
-        ax.xaxis.set_major_formatter(FormatStrFormatter("%.2f"))
+        ax.xaxis.set_major_formatter(FormatStrFormatter("%#.4g"))
         ax.set_xticks([strips[0].axes[1].centre_ppm])
         ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
         ax.invert_xaxis()
