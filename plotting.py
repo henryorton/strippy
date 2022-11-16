@@ -2,8 +2,10 @@ from typing import Optional, TypeVar
 
 import matplotlib as mpl
 import numpy as np
+from peaks import PeakList
 
 from spectrum import Spectrum
+from matplotlib.figure import Figure
 
 mpl.use("Agg")
 import warnings
@@ -33,11 +35,39 @@ def plot_spectrum_1d(spectrum: Spectrum):
     pass
 
 
-def plot_spectrum_2d(spectrum: Spectrum):
-    pass
+def plot_spectrum_2d(spectrum: Spectrum, peaklist: PeakList) -> Figure:
+    fig = plt.figure(figsize=(16.5, 11.7))
+    ax = fig.add_subplot(111)
+
+    if spectrum.positive_contours is not None:
+        ax.contour(
+            spectrum.data,
+            spectrum.positive_contours,
+            colors="b",
+            extent=spectrum.extent,
+            linewidths=0.05,
+        )
+    if spectrum.negative_contours is not None:
+        ax.contour(
+            spectrum.data,
+            spectrum.negative_contours,
+            colors="g",
+            extent=spectrum.extent,
+            linewidths=0.05,
+        )
+    for peak in peaklist:
+        ax.plot(*peak.position, color="r", marker="x")
+        ax.annotate(peak.label, xy=peak.position, fontsize=5)
+
+    ax.invert_xaxis()
+    ax.invert_yaxis()
+
+    return fig
 
 
-def plot_strips(strips_set: list[list[Spectrum]], labels: Optional[list[str]] = None):
+def plot_strips(
+    strips_set: list[list[Spectrum]], labels: Optional[list[str]] = None
+) -> Figure:
     """
     Plot a list of spectra in a strip plot
 
