@@ -30,7 +30,7 @@ class Spectrum:
         return f"<{len(self.axes)}D spectrum with axes [{axes}]>"
 
     def __post_init__(self):
-        logging.debug(f"Created new spectrum: {self}")
+        logger.debug(f"Created new spectrum: {self}")
 
     def make_contours(self, minimum: float, maximum: float, number: int):
         """
@@ -132,14 +132,14 @@ class Spectrum:
         if set(new_axis_order) not in allowed_axes:
             raise IndexError("Incompatible axis definitions")
 
-        logging.debug(
+        logger.debug(
             f"Started reordering spectrum axes from {self.axes} and data shape {self.data.shape}"
         )
 
         self.axes = tuple([self.axes[i] for i in new_axis_order])
         original_axis_order = list(range(len(self.axes)))
         self.data = np.moveaxis(self.data, new_axis_order, original_axis_order)
-        logging.debug(
+        logger.debug(
             f"Finished reordering spectrum axes to {self.axes} and data shape {self.data.shape}"
         )
 

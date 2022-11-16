@@ -36,7 +36,7 @@ class Axis:
         return f"<Axis: {self.label}, {self.points} points in {self.ppm_limits} ppm>"
 
     def __post_init__(self):
-        logging.debug(f"Created new axis: {self}")
+        logger.debug(f"Created new axis: {self}")
 
     @property
     def hz_scale(self) -> npt.NDArray[np.float_]:

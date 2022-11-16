@@ -1,7 +1,10 @@
 from dataclasses import dataclass
+import logging
 from typing import Optional
 
 from matplotlib import colormaps
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -42,10 +45,13 @@ class PeakList:
             a list of tuples (i, (f3, f2)) where i is an identifier, f3 and f2
             make a numpy array of the ppm positions of the peak.
         """
+        logger.debug(f"Loading peaks from file: {file_name}")
+
         peak_list = cls(peaks=[])
         with open(file_name) as o:
             index = 0
             for line_number, line in enumerate(o):
+                logger.debug(f"Reading line number {line_number}.")
                 if line.startswith("#"):
                     continue
                 splt = line.split()
@@ -67,13 +73,15 @@ class PeakList:
                             float(splt[-1]),
                         ),
                     )
+                    logger.debug(f"Succesfully parsed line {line_number}: {peak}")
                     peak_list.peaks.append(peak)
 
                 except ValueError:
-                    print(
-                        f"There was an error when parsing the peaks file on line {line_number+1}."
+                    logger.error(
+                        f"There was an error when parsing the peaks file on line {line_number+1}.",
+                        f"This line was ignored when parsing: {repr(line)}",
                     )
-                    print(f"This line was ignored when parsing: {repr(line)}")
+        logger.info(f"Successfully loaded {len(peak_list)} peaks from file.")
 
         peak_list.set_colour_map()
         return peak_list
@@ -83,7 +91,6 @@ class PeakList:
             peak.position = peak.position[::-1]
 
     def set_colour_map(self):
-
         cm = colormaps["viridis"].resampled(len(self.peaks))
         for i, peak in enumerate(self.peaks):
             peak.label_color = cm(i)
